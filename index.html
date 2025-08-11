@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Dodger — Accounts + Coins + Power-Ups</title>
+<title>Dodger — Leaderboard + Accounts + Power-Ups</title>
 <style>
   :root { --bg:#0c0f14; --fg:#e9efff; --accent:#58a6ff; --danger:#ff6b6b; --muted:#8a94a6; --good:#4ade80; --gold:#ffd166; }
   * { box-sizing:border-box; }
@@ -21,7 +21,7 @@
     padding:8px 10px; pointer-events:none;
   }
   .row { display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
-  .row + .row { margin-top:6px; }
+  .row + .row { margin-top:6px; } /* keep rows from colliding */
   .left { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   .right { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 
@@ -29,12 +29,15 @@
   .hud { display:flex; gap:8px; align-items:center; }
   .btn { font-weight:700; }
   .btn:active { transform: translateY(1px); }
-  .btn[disabled] { opacity:.55; pointer-events:none; }
-  #userChip { pointer-events:auto; background:rgba(88,166,255,0.18); border-color:rgba(88,166,255,0.4); border-radius:12px; padding:6px 10px; max-width:52vw; }
+  #userChip { pointer-events:auto; background:rgba(88,166,255,0.18); border-color:rgba(88,166,255,0.4); border-radius:12px; padding:6px 10px; max-width:58vw; }
 
-  /* Coins pill */
-  #coinsBtn { display:flex; align-items:center; gap:6px; background:rgba(255,209,102,0.18); border-color:rgba(255,209,102,0.4); }
-  #coinCount { font-variant-numeric:tabular-nums; min-width:2.2em; text-align:right; }
+  /* HUD coin chip (gold) */
+  #coinsBtn { display:flex; align-items:center; gap:6px; }
+  .coinDot{
+    width:14px; height:14px; border-radius:50%; display:inline-block;
+    background: radial-gradient(50% 50% at 35% 30%, #fff7c4 0%, #ffe27a 40%, #f6c24d 70%, #c88d2d 100%);
+    box-shadow: inset 0 -1px 0 rgba(0,0,0,.25), 0 0 0 1px rgba(255,209,102,.5), 0 1px 2px rgba(0,0,0,.25);
+  }
 
   .controls {
     position:absolute; left:0; right:0; bottom:0; z-index:6; display:flex; justify-content:space-between; gap:12px; padding:14px; pointer-events:none;
@@ -88,12 +91,13 @@
     </div>
     <div class="right"></div>
   </div>
-  <!-- Second row: user + coins + buttons -->
+  <!-- Second row: user + controls + coins -->
   <div class="row">
     <div class="left">
       <div id="userChip">Connecting…</div>
       <button class="hud" id="coinsBtn" title="Open Store">
-        <span>🪙</span><strong id="coinCount">0</strong>
+        <span class="coinDot" aria-hidden="true"></span>
+        <strong id="coinCount">0</strong>
       </button>
     </div>
     <div class="right">
@@ -121,8 +125,8 @@
 <div class="overlay" id="overlay">
   <div class="card">
     <div class="title">DODGER</div>
-    <div class="subtitle" id="lockMsg">Please sign in and set a display name to play.</div>
-    <button class="go" id="startBtn" disabled>Start</button>
+    <div class="subtitle">Avoid blocks. Power-ups: 🔫 Blaster, ✂ Shrink, 🛡 Shield, 🐌 Slow, 🧲 Magnet, ❤️ Life. Collect coins for the store.</div>
+    <button class="go" id="startBtn">Start</button>
     <div class="muted">Tip: Add to Home Screen on iPhone for full-screen play.</div>
   </div>
 </div>
@@ -154,16 +158,7 @@
   </div>
 </div>
 
-<!-- Store modal (placeholder) -->
-<div class="modal" id="storeModal">
-  <div class="panel">
-    <button class="x" id="storeClose">×</button>
-    <h2>Store (coming soon)</h2>
-    <div class="muted">You have <strong id="storeCoins">0</strong> 🪙 coins. Cosmetics and goodies will appear here later.</div>
-  </div>
-</div>
-
-<!-- Account modal (email/password) -->
+<!-- Account modal -->
 <div class="modal" id="authModal">
   <div class="panel">
     <button class="x" id="authClose">×</button>
@@ -181,17 +176,26 @@
   </div>
 </div>
 
+<!-- Store modal (placeholder) -->
+<div class="modal" id="storeModal">
+  <div class="panel">
+    <button class="x" id="storeClose">×</button>
+    <h2>Store (coming soon)</h2>
+    <div class="muted">You’ll spend your coins here on cosmetic squares, trails, and themes.</div>
+  </div>
+</div>
+
 <!-- ===== Firebase (Auth + Firestore) ===== -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
   import {
-    getAuth, onAuthStateChanged,
+    getAuth, signInAnonymously, onAuthStateChanged,
     signInWithEmailAndPassword, createUserWithEmailAndPassword,
     updateProfile, signOut
   } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
   import {
-    getFirestore, collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp,
-    doc, getDoc, setDoc, updateDoc, increment
+    getFirestore, doc, getDoc, setDoc, updateDoc,
+    collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp, increment
   } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -208,14 +212,49 @@
   const auth = getAuth(app);
   const db   = getFirestore(app);
 
-  // Expose helpers (scores + coins)
+  // Start anonymously so the game works instantly
+  signInAnonymously(auth).catch(()=>{});
+
+  // expose helpers
   window.firebase = {
     auth, db,
     onUser(cb){ return onAuthStateChanged(auth, cb); },
+    async ensureUserDoc(u){
+      try{
+        const ref = doc(db,"users",u.uid);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) {
+          await setDoc(ref, {
+            coins: 0,
+            name: u.displayName || u.email || "Player",
+            createdAt: serverTimestamp()
+          }, { merge:true });
+          return 0;
+        }
+        return Number(snap.data().coins||0);
+      }catch(e){ console.warn("ensureUserDoc", e); return 0; }
+    },
+    async getCoins(){
+      if (!auth.currentUser) return 0;
+      try{ const d = await getDoc(doc(db,"users",auth.currentUser.uid)); return Number(d.data()?.coins||0); }
+      catch{ return 0; }
+    },
+    async addCoins(n){
+      if (!auth.currentUser) return;
+      try{
+        await updateDoc(doc(db,"users",auth.currentUser.uid), { coins: increment(n|0) });
+      }catch(e){
+        // if missing doc due to rules race, create then try again
+        try{
+          await setDoc(doc(db,"users",auth.currentUser.uid), { coins: n|0 }, { merge:true });
+        }catch(_){}
+      }
+    },
     async setDisplayName(name){
       if (!auth.currentUser) return;
       const clean = String(name||"Player").trim().slice(0,24);
       await updateProfile(auth.currentUser, { displayName: clean });
+      try{ await setDoc(doc(db,"users",auth.currentUser.uid), { name: clean }, { merge:true }); }catch(_){}
       return clean;
     },
     async saveScore(score){
@@ -234,62 +273,28 @@
       const qy = query(collection(db,"scores"), orderBy("score","desc"), orderBy("ts","asc"), limit(n));
       const snap = await getDocs(qy);
       return snap.docs.map(d => ({ id:d.id, ...d.data() }));
-    },
-    async ensureUserDoc(){
-      const u = auth.currentUser; if(!u) return null;
-      const ref = doc(db, "users", u.uid);
-      const snap = await getDoc(ref);
-      if(!snap.exists()){
-        await setDoc(ref, { coins: 0, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-        return { coins:0 };
-      }
-      return snap.data();
-    },
-    async getCoins(){
-      const u = auth.currentUser; if(!u) return 0;
-      const ref = doc(db, "users", u.uid);
-      const snap = await getDoc(ref);
-      return snap.exists() ? (snap.data().coins|0) : 0;
-    },
-    async addCoins(n){
-      const u = auth.currentUser; if(!u) return 0;
-      const ref = doc(db, "users", u.uid);
-      await updateDoc(ref, { coins: increment(n), updatedAt: serverTimestamp() }).catch(async err=>{
-        if (err && err.code === "not-found") await setDoc(ref, { coins:n, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-      });
-      const snap = await getDoc(ref);
-      return snap.exists() ? (snap.data().coins|0) : 0;
     }
   };
 
-  // ----- Auth UI wiring + HARD LOCK -----
-  const userChip   = document.getElementById("userChip");
-  const authBtn    = document.getElementById("authBtn");
-  const authModal  = document.getElementById("authModal");
-  const authClose  = document.getElementById("authClose");
-  const authEmail  = document.getElementById("authEmail");
-  const authPass   = document.getElementById("authPass");
-  const authMsg    = document.getElementById("authMsg");
-  const btnIn      = document.getElementById("authSignin");
-  const btnUp      = document.getElementById("authSignup");
-  const btnOut     = document.getElementById("authSignout");
+  // auth UI wiring + forced sign-in gate
+  const userChip = document.getElementById("userChip");
+  const coinCountEl = document.getElementById("coinCount");
+  const authBtn = document.getElementById("authBtn");
+  const authModal = document.getElementById("authModal");
+  const authClose = document.getElementById("authClose");
+  const authEmail = document.getElementById("authEmail");
+  const authPass = document.getElementById("authPass");
+  const authMsg  = document.getElementById("authMsg");
+  const btnIn    = document.getElementById("authSignin");
+  const btnUp    = document.getElementById("authSignup");
+  const btnOut   = document.getElementById("authSignout");
 
-  const nameBtn    = document.getElementById("nameBtn");
-  const nameModal  = document.getElementById("nameModal");
-  const nameClose  = document.getElementById("nameClose");
-  const cancelName = document.getElementById("cancelName");
-  const saveName   = document.getElementById("saveName");
-  const nameInput  = document.getElementById("displayName");
+  const coinsBtn = document.getElementById("coinsBtn");
+  const storeModal = document.getElementById("storeModal");
+  const storeClose = document.getElementById("storeClose");
 
-  const overlay  = document.getElementById("overlay");
+  const overlay = document.getElementById("overlay");
   const startBtn = document.getElementById("startBtn");
-  const lockMsg  = document.getElementById("lockMsg");
-
-  const coinsBtn     = document.getElementById("coinsBtn");
-  const coinCountEl  = document.getElementById("coinCount");
-  const storeModal   = document.getElementById("storeModal");
-  const storeClose   = document.getElementById("storeClose");
-  const storeCoinsEl = document.getElementById("storeCoins");
 
   function openModal(m){ m.style.display="flex"; }
   function closeModal(m){ m.style.display="none"; }
@@ -300,17 +305,13 @@
     if (e.key === "Escape") document.querySelectorAll(".modal").forEach(m=>{ if(m.style.display==="flex") closeModal(m); });
   });
 
+  // Account UI
   authBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); openModal(authModal); });
   authClose.addEventListener("pointerdown", e=>{ e.preventDefault(); closeModal(authModal); });
-
   btnIn.addEventListener("pointerdown", async e=>{
     e.preventDefault(); authMsg.textContent = "";
-    try{
-      await signInWithEmailAndPassword(auth, authEmail.value, authPass.value);
-      await window.firebase.ensureUserDoc();
-      await refreshCoins();
-      closeModal(authModal);
-    }catch(err){ authMsg.textContent = err.message; }
+    try{ await signInWithEmailAndPassword(auth, authEmail.value, authPass.value); closeModal(authModal); }
+    catch(err){ authMsg.textContent = err.message; }
   });
   btnUp.addEventListener("pointerdown", async e=>{
     e.preventDefault(); authMsg.textContent = "";
@@ -318,102 +319,45 @@
       const cred = await createUserWithEmailAndPassword(auth, authEmail.value, authPass.value);
       const def = (authEmail.value||"").split("@")[0].slice(0,24) || "Player";
       await updateProfile(cred.user, { displayName: def });
-      await window.firebase.ensureUserDoc();
-      await refreshCoins();
+      await window.firebase.ensureUserDoc(cred.user);
       closeModal(authModal);
-      nameInput.value = def; openModal(nameModal);
     }catch(err){ authMsg.textContent = err.message; }
   });
   btnOut.addEventListener("pointerdown", async e=>{
-    e.preventDefault(); await signOut(auth);
-    startBtn.disabled = true;
-    lockMsg.textContent = "Please sign in and set a display name to play.";
-    overlay.style.display = "flex";
-    coinCountEl.textContent = "0";
-    closeModal(authModal);
+    e.preventDefault(); await signOut(auth); closeModal(authModal);
   });
 
-  nameBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); openModal(nameModal); });
-  nameClose.addEventListener("pointerdown", e=>{ e.preventDefault(); closeModal(nameModal); });
-  cancelName.addEventListener("pointerdown", e=>{ e.preventDefault(); closeModal(nameModal); });
-  saveName.addEventListener("pointerdown", async e=>{
-    e.preventDefault();
-    const dn = await window.firebase?.setDisplayName?.(nameInput.value||"Player");
-    if (dn) { userChip.textContent = `Signed in: ${dn}`; maybeUnlock(); }
-    closeModal(nameModal);
-  });
+  // Coins / store
+  coinsBtn.addEventListener("pointerdown", (e)=>{ e.preventDefault(); openModal(storeModal); });
+  storeClose.addEventListener("pointerdown", (e)=>{ e.preventDefault(); closeModal(storeModal); });
 
-  coinsBtn.addEventListener("pointerdown", async e=>{
-    e.preventDefault();
-    storeCoinsEl.textContent = coinCountEl.textContent;
-    openModal(storeModal);
-  });
-  storeClose.addEventListener("pointerdown", e=>{ e.preventDefault(); closeModal(storeModal); });
-
-  function maybeUnlock(){
-    const u = auth.currentUser;
-    const hasName = !!(u && (u.displayName && u.displayName.trim()));
-    if (u && hasName) {
-      startBtn.disabled = false;
-      lockMsg.textContent = "You're good to go!";
-    } else {
-      startBtn.disabled = true;
-      lockMsg.textContent = u ? "Set a display name to play." : "Please sign in and set a display name to play.";
-    }
-  }
-
-  async function refreshCoins(){
-    const n = await window.firebase.getCoins();
-    coinCountEl.textContent = String(n|0);
-  }
-
+  // On auth change: set chip, ensure user doc, load coins
   onAuthStateChanged(auth, async (u)=>{
     if (!u){
-      userChip.textContent = "Not signed in";
-      startBtn.disabled = true;
-      lockMsg.textContent = "Please sign in and set a display name to play.";
-      overlay.style.display = "flex";
-      openModal(authModal);
+      userChip.textContent = "Guest (not saved)";
       coinCountEl.textContent = "0";
-    } else {
-      userChip.textContent = u.displayName ? `Signed in: ${u.displayName}` :
-                             u.email ? `Signed in: ${u.email}` : "Signed in";
-      await window.firebase.ensureUserDoc();
-      await refreshCoins();
-      if (!u.displayName || !u.displayName.trim()){
-        nameInput.value = (u.email||"").split("@")[0].slice(0,24);
-        openModal(nameModal);
-      }
-      maybeUnlock();
+      // show gate until they sign in
+      overlay.style.display = "flex";
+      startBtn.disabled = true;
+      startBtn.textContent = "Sign in to start";
+      openModal(authModal);
+      return;
     }
+    startBtn.disabled = false;
+    startBtn.textContent = "Start";
+
+    userChip.textContent = u.displayName ? `Signed in: ${u.displayName}` :
+                           u.email ? `Signed in: ${u.email}` : "Signed in";
+    const coins = await window.firebase.ensureUserDoc(u);
+    coinCountEl.textContent = String(coins);
   });
 
-  // Leaderboard
-  const lbBtn = document.getElementById("lbBtn");
-  const lbModal = document.getElementById("lbModal");
-  const lbClose = document.getElementById("lbClose");
-  const lbBody = document.querySelector("#lbTable tbody");
+  // expose coin UI update for the game script
+  window.updateCoinsHUD = (n) => { coinCountEl.textContent = String(n); };
 
-  lbBtn.addEventListener("pointerdown", async e=>{
-    e.preventDefault();
-    lbBody.innerHTML = "<tr><td colspan='4'>Loading…</td></tr>";
-    try{
-      const rows = await window.firebase.loadTop(20);
-      if (!rows.length) { lbBody.innerHTML = "<tr><td colspan='4'>No scores yet.</td></tr>"; }
-      else {
-        let i=1; lbBody.innerHTML = rows.map(r=>{
-          const when = r.ts?.toDate ? r.ts.toDate() : new Date();
-          return `<tr><td>${i++}</td><td>${escapeHtml(r.name||"Player")}</td><td style="text-align:right">${r.score|0}</td><td>${when.toLocaleDateString()}</td></tr>`;
-        }).join("");
-      }
-    }catch(err){ lbBody.innerHTML = `<tr><td colspan="4">Error: ${escapeHtml(err.message||String(err))}</td></tr>`; }
-    lbModal.style.display="flex";
-  });
-  lbClose.addEventListener("pointerdown", e=>{ e.preventDefault(); lbModal.style.display="none"; });
-  function escapeHtml(x){ return (x||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m])); }
 </script>
 
-<!-- ===== Game code (coins + power-ups) ===== -->
+<!-- ===== Game code (power-ups + coins) ===== -->
 <script>
 (function () {
   "use strict";
@@ -443,14 +387,51 @@
   const leftPad = document.getElementById("leftPad");
   const rightPad= document.getElementById("rightPad");
   const firePad = document.getElementById("firePad");
+  const nameBtn = document.getElementById("nameBtn");
+  const nameModal = document.getElementById("nameModal");
+  const nameClose = document.getElementById("nameClose");
+  const cancelName= document.getElementById("cancelName");
+  const saveName  = document.getElementById("saveName");
+  const nameInput = document.getElementById("displayName");
+  const lbBtn = document.getElementById("lbBtn");
+  const lbModal = document.getElementById("lbModal");
+  const lbClose = document.getElementById("lbClose");
+  const lbBody = document.querySelector("#lbTable tbody");
   const shrinkBtn = document.getElementById("shrinkBtn");
   const shrinkCountEl = document.getElementById("shrinkCount");
-  const coinCountEl = document.getElementById("coinCount");
-  const storeCoinsEl = document.getElementById("storeCoins");
 
   // Prevent scroll/zoom globally, but let overlays work
   const prevent=(e)=>{ if (e.target.closest(".overlay") || e.target.closest(".modal")) return; e.preventDefault(); };
   ["touchstart","touchmove","touchend","gesturestart"].forEach(ev=>document.addEventListener(ev, prevent, { passive:false }));
+
+  // Name modal
+  nameBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); nameModal.style.display="flex"; });
+  [nameClose,cancelName].forEach(el=>el.addEventListener("pointerdown", e=>{ e.preventDefault(); nameModal.style.display="none"; }));
+  saveName.addEventListener("pointerdown", async e=>{
+    e.preventDefault();
+    const dn = await window.firebase?.setDisplayName?.(nameInput.value||"Player");
+    if (dn) { const uc=document.getElementById("userChip"); uc.textContent = `Signed in: ${dn}`; }
+    nameModal.style.display="none";
+  });
+
+  // Leaderboard modal
+  lbBtn.addEventListener("pointerdown", async e=>{
+    e.preventDefault();
+    lbBody.innerHTML = "<tr><td colspan='4'>Loading…</td></tr>";
+    try{
+      const rows = await window.firebase.loadTop(20);
+      if (!rows.length) { lbBody.innerHTML = "<tr><td colspan='4'>No scores yet.</td></tr>"; }
+      else {
+        let i=1; lbBody.innerHTML = rows.map(r=>{
+          const when = r.ts?.toDate ? r.ts.toDate() : new Date();
+          return `<tr><td>${i++}</td><td>${escapeHtml(r.name||"Player")}</td><td style="text-align:right">${r.score|0}</td><td>${when.toLocaleDateString()}</td></tr>`;
+        }).join("");
+      }
+    }catch(err){ lbBody.innerHTML = `<tr><td colspan="4">Error: ${escapeHtml(err.message||String(err))}</td></tr>`; }
+    lbModal.style.display="flex";
+  });
+  lbClose.addEventListener("pointerdown", e=>{ e.preventDefault(); lbModal.style.display="none"; });
+  function escapeHtml(x){ return (x||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m])); }
 
   // Game state
   const state = {
@@ -465,10 +446,17 @@
     lives:0,
     shrinkCharges:0,
     powerups:[], powTimer:2.5,
-    coins:[], coinTimer:3.5, // coin spawner
+    coins:[], coinTimer:6,        // << coin spawner
+    coinTotal:0,
     effects:{ shrinkUntil:0, shieldUntil:0, slowUntil:0, magnetUntil:0 }
   };
   bestEl.textContent = state.best; ammoEl.textContent = state.ammo; livesEl.textContent = state.lives; shrinkCountEl.textContent = state.shrinkCharges;
+
+  // Load coin count on start (after auth initialized)
+  (async ()=>{ try{
+    const curr = await window.firebase?.getCoins?.(); state.coinTotal = Number(curr||0);
+    window.updateCoinsHUD?.(state.coinTotal);
+  }catch{} })();
 
   function resetPlayer(){
     const base = Math.max(36, Math.min(56, Math.floor(Math.min(width,height)*0.06)));
@@ -507,16 +495,15 @@
   pauseBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); togglePause(); });
 
   function startGame(){
-    if (startBtn.disabled) return;
     state.blocks.length=0; state.bullets.length=0; state.powerups.length=0; state.coins.length=0;
-    state.score=0; state.time=0; state.blockTimer=0; state.powTimer=2.5; state.coinTimer=2.0;
+    state.score=0; state.time=0; state.blockTimer=0; state.powTimer=2.5; state.coinTimer=6;
     state.difficulty=1; state.over=false; state.paused=false;
     state.effects = { shrinkUntil:0, shieldUntil:0, slowUntil:0, magnetUntil:0 };
     state.player.invUntil = 0;
     state.ammo=0; state.shrinkCharges=0; state.lives=0;
     ammoEl.textContent="0"; livesEl.textContent="0"; shrinkCountEl.textContent="0";
-    overlay.style.display="none"; state.running=true; state.last=performance.now();
     resetPlayer();
+    overlay.style.display="none"; state.running=true; state.last=performance.now();
     requestAnimationFrame(loop);
   }
 
@@ -528,7 +515,6 @@
     p.innerHTML = `You scored <strong>${Math.floor(state.score)}</strong>. ${(state.score>state.best)?`<span style="color:var(--danger)">New high score!</span>`:`Try again!`}`;
     overlay.querySelector(".card").insertBefore(p, overlay.querySelector(".go"));
     state.best=Math.max(state.best, Math.floor(state.score)); localStorage.setItem("dodger_best", String(state.best)); bestEl.textContent=state.best; startBtn.textContent="Play Again";
-
     if (window.firebase?.saveScore) { try { await window.firebase.saveScore(state.score); } catch(_){} }
   }
 
@@ -570,9 +556,9 @@
     state.powerups.push({ type, x, y:-size, w:size, h:size, vy });
   }
   function spawnCoin(){
-    const size = Math.max(16, Math.floor(Math.min(width,height)*0.032));
+    const size = Math.max(18, Math.floor(Math.min(width,height)*0.035));
     const x = rand(0, width - size);
-    const vy = rand(120, 170);
+    const vy = rand(90, 130);
     state.coins.push({ x, y:-size, w:size, h:size, vy });
   }
 
@@ -590,26 +576,20 @@
   }
 
   // Update & draw
-  async function onCoinCollected(count){
-    // bump server coins; reflect in both header + store modal
-    const total = await window.firebase.addCoins(count);
-    coinCountEl.textContent = String(total);
-    storeCoinsEl.textContent = String(total);
-  }
-
   function update(dt){
     state.time += dt;
-    state.score += dt*10;
+    state.score += dt*10; // score grows by real time
     scoreEl.textContent = Math.floor(state.score);
     state.difficulty = 1 + Math.min(2.2, state.time/24);
 
+    // world slow factor (affects falling/spawn, not player)
     const slowActive = state.effects.slowUntil > state.time;
     const worldDT = dt * (slowActive ? 0.55 : 1);
 
     // shrink active?
     state.player.scale = (state.effects.shrinkUntil > state.time) ? 0.6 : 1;
 
-    // player movement
+    // player move (not slowed)
     const p = state.player, base = p.speed * state.difficulty * 0.95;
     let targetVX = 0;
     if(state.input.left) targetVX -= base;
@@ -640,9 +620,8 @@
     // spawn coins
     state.coinTimer -= worldDT;
     if (state.coinTimer <= 0) {
-      // adaptive cadence: slightly more frequent as time goes on
       spawnCoin();
-      state.coinTimer = rand(2.2, 3.4);
+      state.coinTimer = rand(6, 10);
     }
 
     // move blocks
@@ -666,6 +645,7 @@
       }
 
       if (u.y - u.h > height + 8) { state.powerups.splice(i,1); continue; }
+      // collect
       if (u.x < p.x + pw && u.x + u.w > p.x && u.y < p.y + ph && u.y + u.h > p.y) {
         if (u.type === "blaster") { state.ammo += 6; ammoEl.textContent = state.ammo; }
         else if (u.type === "shrink") { state.shrinkCharges += 1; shrinkCountEl.textContent = state.shrinkCharges; }
@@ -677,32 +657,31 @@
       }
     }
 
-    // move coins (+magnet)
-    for (let i=state.coins.length-1; i>=0; i--) {
+    // move coins (magnet also pulls coins)
+    for (let i=state.coins.length-1; i>=0; i--){
       const c = state.coins[i];
       if (magnet) {
         const cx = (p.x + pw/2) - (c.x + c.w/2);
         const cy = (p.y + ph/2) - (c.y + c.h/2);
         const dist = Math.max(1, Math.hypot(cx, cy));
-        c.x += (cx/dist) * 240 * worldDT;
-        c.y += (cy/dist) * 240 * worldDT;
+        c.x += (cx/dist) * 200 * worldDT;
+        c.y += (cy/dist) * 200 * worldDT;
       } else {
         c.y += c.vy * worldDT;
       }
       if (c.y - c.h > height + 8) { state.coins.splice(i,1); continue; }
       if (c.x < p.x + pw && c.x + c.w > p.x && c.y < p.y + ph && c.y + c.h > p.y) {
-        // collect 1 coin
         state.coins.splice(i,1);
-        // async update account coins (no await in the loop to keep frame smooth)
-        onCoinCollected(1);
-        // tiny score bump for feedback
-        state.score += 1;
+        state.coinTotal += 1;
+        window.updateCoinsHUD?.(state.coinTotal);
+        // fire-and-forget save
+        window.firebase?.addCoins?.(1);
       }
     }
 
-    // bullets
+    // move bullets + bullet vs block
     for (let i=state.bullets.length-1; i>=0; i--) {
-      const bullet = state.bullets[i]; bullet.y += bullet.vy * dt;
+      const bullet = state.bullets[i]; bullet.y += bullet.vy * dt; // bullets unaffected by slow
       if (bullet.y + bullet.h < -10) { state.bullets.splice(i,1); continue; }
       for (let j=state.blocks.length-1; j>=0; j--) {
         const b = state.blocks[j];
@@ -715,7 +694,7 @@
       }
     }
 
-    // block vs player
+    // block vs player (shield/lives/invuln)
     for (let i=state.blocks.length-1; i>=0; i--) {
       const b = state.blocks[i];
       if (b.x < p.x + pw && b.x + b.w > p.x && b.y < p.y + ph && b.y + b.h > p.y) {
@@ -749,7 +728,6 @@
 
     const p = state.player, pw = p.w*p.scale, ph = p.h*p.scale;
 
-    // shield aura
     if (state.effects.shieldUntil > state.time) {
       ctx.save();
       ctx.globalAlpha = 0.25 + 0.15*Math.sin(state.time*8);
@@ -757,7 +735,6 @@
       roundRect(ctx, p.x-6, p.y-6, pw+12, ph+12, Math.min(16, pw*0.35), true);
       ctx.restore();
     }
-    // invincibility flash
     if (state.player.invUntil > state.time) { ctx.globalAlpha = 0.6 + 0.4*Math.sin(state.time*30); }
 
     // player
@@ -772,7 +749,7 @@
       roundRect(ctx, b.x+b.w*0.1, b.y+b.h*0.08, b.w*0.8, b.h*0.18, 8, true); ctx.globalAlpha = 1;
     }
 
-    // power-ups
+    // powerups
     for (const u of state.powerups) {
       let color="#ffd166", glyph="🔫";
       if (u.type==="shrink"){ color="#34d399"; glyph="✂"; }
@@ -786,13 +763,17 @@
       ctx.textAlign = "center"; ctx.fillText(glyph, u.x+u.w/2, u.y+u.h/2+6);
     }
 
-    // coins (small, gold, with simple highlight)
+    // coins (gold)
     for (const c of state.coins) {
-      ctx.fillStyle = "#ffd166";
-      roundRect(ctx, c.x, c.y, c.w, c.h, c.w*0.5, true); // pill/circle
-      ctx.globalAlpha = 0.18; ctx.fillStyle="#ffffff";
-      roundRect(ctx, c.x+c.w*0.18, c.y+c.h*0.18, c.w*0.64, c.h*0.28, c.w*0.14, true);
-      ctx.globalAlpha = 1;
+      const r = Math.min(10, c.w*0.4);
+      const grad = ctx.createRadialGradient(c.x+c.w*0.35, c.y+c.h*0.35, 1, c.x+c.w*0.5, c.y+c.h*0.5, c.w*0.6);
+      grad.addColorStop(0, "#fff7c4");
+      grad.addColorStop(0.4, "#ffe27a");
+      grad.addColorStop(0.7, "#f6c24d");
+      grad.addColorStop(1, "#c88d2d");
+      ctx.fillStyle = grad;
+      roundRect(ctx, c.x, c.y, c.w, c.h, r, true);
+      ctx.strokeStyle = "rgba(255,209,102,.6)"; ctx.lineWidth = 1; ctx.stroke();
     }
 
     // bullets

@@ -238,11 +238,17 @@
         return { ok:true };
       }catch(e){ return { ok:false, error:e.message }; }
     },
+    /* ✅ put back for Leaderboard */
+    async loadTop(n=20){
+      const qy = query(collection(db,"scores"), orderBy("score","desc"), orderBy("ts","asc"), limit(n));
+      const snap = await getDocs(qy);
+      return snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    },
     async addCoins(n){
       const u = auth.currentUser;
       if (!u) throw new Error("Not signed in");
       const ref = await window.firebase.ensureWallet(u.uid);
-      await updateDoc(ref, { coins: increment(n|0) }); // await so it actually persists
+      await updateDoc(ref, { coins: increment(n|0) });
     }
   };
 
@@ -585,7 +591,7 @@
         state.coins.splice(i,1);
         // optimistic UI update; DB is truth via onSnapshot
         coinCountEl.textContent = String((Number(coinCountEl.textContent)||0) + 1);
-        window.firebase.addCoins(1).catch(()=>{/* ignore; snapshot will correct if failed */});
+        window.firebase.addCoins(1).catch(()=>{/* ignored; snapshot corrects */});
       }
     }
 

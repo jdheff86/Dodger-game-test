@@ -58,6 +58,7 @@
   .btn2{ flex:1; padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.06); color:var(--fg); font-weight:700; }
   .btn2.primary{ background:var(--accent); color:#0b1220; border-color:transparent; }
   .x{ position:absolute; top:10px; right:12px; background:transparent; border:none; color:var(--muted); font-size:22px; }
+  .small { font-size:12px; color:var(--muted); text-decoration:underline; background:none; border:none; padding:0; }
 </style>
 </head>
 <body class="safe">
@@ -173,6 +174,9 @@
       <button class="btn2 primary" id="authSignup">Create account</button>
       <button class="btn2" id="authSignout">Sign out</button>
     </div>
+    <div style="margin-top:6px; display:flex; justify-content:flex-end;">
+      <button class="small" id="authForgot">Forgot password?</button>
+    </div>
   </div>
 </div>
 
@@ -183,7 +187,8 @@
     getAuth, onAuthStateChanged,
     signInWithEmailAndPassword, createUserWithEmailAndPassword,
     updateProfile, signOut,
-    browserLocalPersistence, setPersistence
+    browserLocalPersistence, setPersistence,
+    sendPasswordResetEmail
   } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
   import {
     getFirestore, collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp,
@@ -278,6 +283,7 @@
   const btnIn    = document.getElementById("authSignin");
   const btnUp    = document.getElementById("authSignup");
   const btnOut   = document.getElementById("authSignout");
+  const btnForgot= document.getElementById("authForgot");
   const startBtn = document.getElementById("startBtn");
   const startSub = document.getElementById("startSub");
 
@@ -333,6 +339,19 @@
   });
   btnOut.addEventListener("pointerdown", async e=>{
     e.preventDefault(); await signOut(auth); closeModal(authModal);
+  });
+
+  // 🔁 Reset password
+  btnForgot.addEventListener("pointerdown", async e=>{
+    e.preventDefault();
+    const email = (authEmail.value || "").trim();
+    if (!email) { authMsg.textContent = "Enter your email first, then tap Reset."; return; }
+    try{
+      await sendPasswordResetEmail(auth, email);
+      authMsg.textContent = "Password reset email sent. Check your inbox.";
+    }catch(err){
+      authMsg.textContent = prettyAuthError(err);
+    }
   });
 </script>
 
@@ -410,7 +429,7 @@
     lbModal.style.display="flex";
   });
   lbClose.addEventListener("pointerdown", e=>{ e.preventDefault(); lbModal.style.display="none"; });
-  function escapeHtml(x){ return (x||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;"," >":"&gt;","\"":"&quot;","'":"&#39;" }[m])); }
+  function escapeHtml(x){ return (x||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m])); }
 
   // Game state
   const state = {

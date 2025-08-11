@@ -14,24 +14,20 @@
   body { overflow:hidden; touch-action:none; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
   canvas { display:block; width:100%; height:100%; }
 
+  /* Safe area + header */
   .safe { padding-top: env(safe-area-inset-top); }
   header {
     position:absolute; top:0; left:0; right:0; z-index:8; display:flex; flex-direction:column;
     padding:8px 10px; gap:6px; pointer-events:none;
   }
 
-  /* 🔒 Two fixed-height rows that never wrap */
+  /* 🔒 Two fixed rows that never wrap or change height */
   .topbar, .toolbar {
-    display:flex; align-items:center; gap:8px; height:44px; flex-wrap:nowrap;
-  }
-  .topbar { justify-content:space-between; }
-  .toolbar { /* left + right each take half; keeps row locked */
-    justify-content:space-between;
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    height:44px; flex-wrap:nowrap; overflow:hidden;
   }
   .left, .right { display:flex; gap:8px; align-items:center; min-width:0; }
-  .toolbar .left { flex:1; min-width:0; }
-  .toolbar .right { flex:1; justify-content:flex-end; min-width:0; }
-
+  .right .btn { flex:0 0 auto; } /* buttons never stretch */
   .hud, .btn, #userChip, #coinChip {
     pointer-events:auto; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12);
     border-radius:12px; padding:6px 10px; white-space:nowrap; height:34px; display:flex; align-items:center;
@@ -40,30 +36,33 @@
   .btn { font-weight:700; }
   .btn:active { transform: translateY(1px); }
 
-  /* 🚫 Numbers won’t change width anymore */
-  #score,#best,#ammo,#lives{
-    display:inline-block; min-width:4.5ch; text-align:right; font-variant-numeric:tabular-nums;
+  /* Keep numeric widths stable so the row doesn't breathe */
+  #score,#best,#ammo,#lives { display:inline-block; min-width:4.8ch; text-align:right; font-variant-numeric:tabular-nums; }
+
+  /* User chip won’t push anything even with long names */
+  #userChip {
+    background:rgba(88,166,255,0.18); border-color:rgba(88,166,255,0.4);
+    width: clamp(140px, 42vw, 260px); overflow:hidden; text-overflow:ellipsis;
   }
 
-  #userChip { background:rgba(88,166,255,0.18); border-color:rgba(88,166,255,0.4);
-    max-width:52vw; overflow:hidden; text-overflow:ellipsis;
-  }
-
-  /* Coin chip in header */
+  /* Coin chip next to user chip */
   #coinChip { gap:6px; background:rgba(255,213,95,0.12); border-color:rgba(255,213,95,0.35); }
-  #coinChip svg { width:18px; height:18px; flex:0 0 auto; }
-  #coinCount { font-variant-numeric:tabular-nums; min-width:2.5ch; text-align:right; }
+  #coinChip svg { width:18px; height:18px; flex:0 0 18px; }
+  #coinCount { font-variant-numeric:tabular-nums; min-width:2.6ch; text-align:right; }
 
   .controls {
     position:absolute; left:0; right:0; bottom:0; z-index:6; display:flex; justify-content:space-between; gap:12px; padding:14px; pointer-events:none;
   }
-  .pad { flex:1; min-height:92px; border-radius:16px; pointer-events:auto;
+  .pad {
+    flex:1; min-height:92px; border-radius:16px; pointer-events:auto;
     background:linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03));
-    border:1px solid rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; }
+    border:1px solid rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center;
+  }
   .pad span { font-size:28px; filter: drop-shadow(0 2px 0 rgba(0,0,0,0.35)); }
   .pad.fire { flex:0.9; }
   .ammo { color:var(--good); font-variant-numeric:tabular-nums; }
 
+  /* Ability bar */
   #abilities { position:absolute; left:0; right:0; bottom:110px; display:flex; justify-content:center; z-index:6; pointer-events:none; }
   #shrinkBtn { pointer-events:auto; display:flex; align-items:center; gap:8px; }
   #shrinkCount { min-width:1.6em; text-align:center; }
@@ -93,7 +92,7 @@
 <canvas id="game" aria-label="Dodger game area"></canvas>
 
 <header class="safe">
-  <!-- Row 1: HUD (locked) -->
+  <!-- Row 1: HUD -->
   <div class="topbar">
     <div class="left">
       <div class="hud"><strong>Score:</strong><span id="score">0</span></div>
@@ -104,11 +103,12 @@
     <div class="right"></div>
   </div>
 
-  <!-- Row 2: account + buttons (locked) -->
+  <!-- Row 2: account + actions -->
   <div class="toolbar">
     <div class="left">
       <div id="userChip">Connecting…</div>
       <div id="coinChip" title="Coins">
+        <!-- small coin icon with knurling + D -->
         <svg viewBox="0 0 64 64" aria-hidden="true">
           <defs>
             <radialGradient id="cg" cx="40%" cy="35%" r="65%">
@@ -206,7 +206,7 @@
   </div>
 </div>
 
-<!-- Firebase + game scripts (same as your working version) -->
+<!-- ===== Firebase (Auth + Firestore + Wallet) ===== -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
   import {
@@ -219,59 +219,510 @@
     doc, setDoc, getDoc, updateDoc, increment
   } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 
-  const firebaseConfig = { apiKey:"AIzaSyD37Lc_tHwEkmXSHwDr6QUTNeWXGOKAftg", authDomain:"dodger-4aad1.firebaseapp.com", projectId:"dodger-4aad1", storageBucket:"dodger-4aad1.appspot.com", messagingSenderId:"148070811748", appId:"1:148070811748:web:1ed51b4872b9d9106b3771", measurementId:"G-NV3R6CEYH7" };
+  const firebaseConfig = {
+    apiKey: "AIzaSyD37Lc_tHwEkmXSHwDr6QUTNeWXGOKAftg",
+    authDomain: "dodger-4aad1.firebaseapp.com",
+    projectId: "dodger-4aad1",
+    storageBucket: "dodger-4aad1.appspot.com",
+    messagingSenderId: "148070811748",
+    appId: "1:148070811748:web:1ed51b4872b9d9106b3771",
+    measurementId: "G-NV3R6CEYH7"
+  };
+
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db   = getFirestore(app);
+
+  // Guest so game runs before sign-in
   signInAnonymously(auth).catch(()=>{});
 
+  // Helpers exposed
   window.firebase = {
     auth, db,
     onUser(cb){ return onAuthStateChanged(auth, cb); },
-    async setDisplayName(name){ if(!auth.currentUser) return; const clean=String(name||"Player").trim().slice(0,24); await updateProfile(auth.currentUser,{displayName:clean}); return clean; },
-    async saveScore(score){ if(!auth.currentUser) return {ok:false,error:"Not signed in"}; try{ await addDoc(collection(db,"scores"),{uid:auth.currentUser.uid,name:auth.currentUser.displayName||auth.currentUser.email||"Player",score:Math.floor(Number(score)||0),ts:serverTimestamp()}); return {ok:true}; }catch(e){ return {ok:false,error:e.message}; } },
-    async loadTop(n=20){ const qy=query(collection(db,"scores"),orderBy("score","desc"),orderBy("ts","asc"),limit(n)); const snap=await getDocs(qy); return snap.docs.map(d=>({id:d.id,...d.data()})); },
-    async getOrCreateWallet(){ const u=auth.currentUser; if(!u) return 0; const ref=doc(db,"wallets",u.uid); const s=await getDoc(ref); if(!s.exists()) { await setDoc(ref,{coins:0}); return 0; } return Number(s.data()?.coins||0); },
-    async addCoins(n){ const u=auth.currentUser; if(!u) return; const ref=doc(db,"wallets",u.uid); await setDoc(ref,{coins:0},{merge:true}); await updateDoc(ref,{coins:increment(n|0)}); }
+    async setDisplayName(name){
+      if (!auth.currentUser) return;
+      const clean = String(name||"Player").trim().slice(0,24);
+      await updateProfile(auth.currentUser, { displayName: clean });
+      return clean;
+    },
+    async saveScore(score){
+      if (!auth.currentUser) return { ok:false, error:"Not signed in" };
+      try{
+        await addDoc(collection(db,"scores"),{
+          uid:auth.currentUser.uid,
+          name:auth.currentUser.displayName || auth.currentUser.email || "Player",
+          score: Math.floor(Number(score)||0),
+          ts: serverTimestamp()
+        });
+        return { ok:true };
+      }catch(e){ return { ok:false, error:e.message }; }
+    },
+    async loadTop(n=20){
+      const qy = query(collection(db,"scores"), orderBy("score","desc"), orderBy("ts","asc"), limit(n));
+      const snap = await getDocs(qy);
+      return snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    },
+    async getOrCreateWallet(){
+      const u = auth.currentUser; if(!u) return 0;
+      const ref = doc(db,"wallets",u.uid);
+      const s = await getDoc(ref);
+      if(!s.exists()){ await setDoc(ref,{coins:0}); return 0; }
+      return Number(s.data()?.coins||0);
+    },
+    async addCoins(n){
+      const u = auth.currentUser; if(!u) return;
+      const ref = doc(db,"wallets",u.uid);
+      await setDoc(ref,{coins:0},{merge:true});
+      await updateDoc(ref,{coins: increment(n|0)});
+    }
   };
 
-  const userChip=document.getElementById("userChip");
-  const coinCountEl=document.getElementById("coinCount");
-  const authBtn=document.getElementById("authBtn");
-  const authModal=document.getElementById("authModal");
-  const authClose=document.getElementById("authClose");
-  const authEmail=document.getElementById("authEmail");
-  const authPass=document.getElementById("authPass");
-  const authMsg=document.getElementById("authMsg");
-  const btnIn=document.getElementById("authSignin");
-  const btnUp=document.getElementById("authSignup");
-  const btnOut=document.getElementById("authSignout");
+  // Auth UI wiring
+  const userChip = document.getElementById("userChip");
+  const coinCountEl = document.getElementById("coinCount");
+  const authBtn = document.getElementById("authBtn");
+  const authModal = document.getElementById("authModal");
+  const authClose = document.getElementById("authClose");
+  const authEmail = document.getElementById("authEmail");
+  const authPass = document.getElementById("authPass");
+  const authMsg  = document.getElementById("authMsg");
+  const btnIn    = document.getElementById("authSignin");
+  const btnUp    = document.getElementById("authSignup");
+  const btnOut   = document.getElementById("authSignout");
 
   onAuthStateChanged(auth, async (u)=>{
-    if (!u){ userChip.textContent="Guest (not saved)"; coinCountEl.textContent="0"; return; }
-    userChip.textContent = u.displayName ? `Signed in: ${u.displayName}` : (u.email ? `Signed in: ${u.email}` : "Signed in");
-    try { coinCountEl.textContent = String(await window.firebase.getOrCreateWallet()); } catch {}
+    if (!u){ userChip.textContent = "Guest (not saved)"; coinCountEl.textContent="0"; return; }
+    userChip.textContent = u.displayName ? `Signed in: ${u.displayName}` :
+                           u.email ? `Signed in: ${u.email}` : "Signed in";
+    try{ coinCountEl.textContent = String(await window.firebase.getOrCreateWallet()); }catch{}
   });
 
   function openModal(m){ m.style.display="flex"; }
   function closeModal(m){ m.style.display="none"; }
-  document.querySelectorAll(".modal").forEach(m=>{ m.addEventListener("pointerdown",(e)=>{ if(e.target===m) closeModal(m); },{passive:true}); });
-  document.addEventListener("keydown",(e)=>{ if(e.key==="Escape") document.querySelectorAll(".modal").forEach(m=>{ if(m.style.display==="flex") closeModal(m); }); });
+
+  document.querySelectorAll(".modal").forEach(m=>{
+    m.addEventListener("pointerdown", (e)=>{ if(e.target === m) closeModal(m); }, {passive:true});
+  });
+  document.addEventListener("keydown", (e)=>{
+    if (e.key === "Escape") document.querySelectorAll(".modal").forEach(m=>{ if(m.style.display==="flex") closeModal(m); });
+  });
 
   authBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); openModal(authModal); });
   authClose.addEventListener("pointerdown", e=>{ e.preventDefault(); closeModal(authModal); });
 
-  btnIn.addEventListener("pointerdown", async e=>{ e.preventDefault(); authMsg.textContent=""; try{ await signInWithEmailAndPassword(auth,authEmail.value,authPass.value); closeModal(authModal);}catch(err){ authMsg.textContent=err.message; }});
-  btnUp.addEventListener("pointerdown", async e=>{ e.preventDefault(); authMsg.textContent=""; try{ const cred=await createUserWithEmailAndPassword(auth,authEmail.value,authPass.value); const def=(authEmail.value||"").split("@")[0].slice(0,24)||"Player"; await updateProfile(cred.user,{displayName:def}); closeModal(authModal);}catch(err){ authMsg.textContent=err.message; }});
-  btnOut.addEventListener("pointerdown", async e=>{ e.preventDefault(); await signOut(auth); closeModal(authModal); });
+  btnIn.addEventListener("pointerdown", async e=>{
+    e.preventDefault(); authMsg.textContent = "";
+    try{ await signInWithEmailAndPassword(auth, authEmail.value, authPass.value); closeModal(authModal); }
+    catch(err){ authMsg.textContent = err.message; }
+  });
+  btnUp.addEventListener("pointerdown", async e=>{
+    e.preventDefault(); authMsg.textContent = "";
+    try{
+      const cred = await createUserWithEmailAndPassword(auth, authEmail.value, authPass.value);
+      const def = (authEmail.value||"").split("@")[0].slice(0,24) || "Player";
+      await updateProfile(cred.user, { displayName: def });
+      closeModal(authModal);
+    }catch(err){ authMsg.textContent = err.message; }
+  });
+  btnOut.addEventListener("pointerdown", async e=>{
+    e.preventDefault(); await signOut(auth); closeModal(authModal);
+  });
 </script>
 
-<!-- Game (unchanged aside from coins calling addCoins) -->
+<!-- ===== Game code (coins + power-ups) ===== -->
 <script>
-/* your existing game code from the previous working version lives here —
-   unchanged — so this message doesn’t get too long. If you need me to
-   paste the whole thing again verbatim, say “paste game too” and I’ll
-   drop it in. */
+(function () {
+  "use strict";
+
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d", { alpha:false, desynchronized:true });
+
+  let width=0, height=0, dpr=Math.max(1, window.devicePixelRatio||1);
+  function fit(){
+    width=Math.max(320,Math.floor(window.innerWidth||document.documentElement.clientWidth));
+    height=Math.max(480,Math.floor(window.innerHeight||document.documentElement.clientHeight));
+    dpr=Math.max(1, window.devicePixelRatio||1);
+    canvas.width=Math.floor(width*dpr); canvas.height=Math.floor(height*dpr);
+    canvas.style.width=width+"px"; canvas.style.height=height+"px";
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  fit(); window.addEventListener("resize", fit);
+
+  // UI refs
+  const scoreEl = document.getElementById("score");
+  const bestEl  = document.getElementById("best");
+  const ammoEl  = document.getElementById("ammo");
+  const livesEl = document.getElementById("lives");
+  const coinCountEl = document.getElementById("coinCount");
+  const startBtn= document.getElementById("startBtn");
+  const pauseBtn= document.getElementById("pauseBtn");
+  const overlay = document.getElementById("overlay");
+  const leftPad = document.getElementById("leftPad");
+  const rightPad= document.getElementById("rightPad");
+  const firePad = document.getElementById("firePad");
+  const nameBtn = document.getElementById("nameBtn");
+  const nameModal = document.getElementById("nameModal");
+  const nameClose = document.getElementById("nameClose");
+  const cancelName= document.getElementById("cancelName");
+  const saveName  = document.getElementById("saveName");
+  const nameInput = document.getElementById("displayName");
+  const lbBtn = document.getElementById("lbBtn");
+  const lbModal = document.getElementById("lbModal");
+  const lbClose = document.getElementById("lbClose");
+  const lbBody = document.querySelector("#lbTable tbody");
+  const shrinkBtn = document.getElementById("shrinkBtn");
+  const shrinkCountEl = document.getElementById("shrinkCount");
+
+  // Prevent scroll/zoom globally, but let overlays work
+  const prevent=(e)=>{ if (e.target.closest(".overlay") || e.target.closest(".modal")) return; e.preventDefault(); };
+  ["touchstart","touchmove","touchend","gesturestart"].forEach(ev=>document.addEventListener(ev, prevent, { passive:false }));
+
+  // Name modal
+  nameBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); nameModal.style.display="flex"; });
+  [nameClose,cancelName].forEach(el=>el.addEventListener("pointerdown", e=>{ e.preventDefault(); nameModal.style.display="none"; }));
+  saveName.addEventListener("pointerdown", async e=>{
+    e.preventDefault();
+    const dn = await window.firebase?.setDisplayName?.(nameInput.value||"Player");
+    if (dn) { const uc=document.getElementById("userChip"); uc.textContent = `Signed in: ${dn}`; }
+    nameModal.style.display="none";
+  });
+
+  // Leaderboard modal
+  lbBtn.addEventListener("pointerdown", async e=>{
+    e.preventDefault();
+    lbBody.innerHTML = "<tr><td colspan='4'>Loading…</td></tr>";
+    try{
+      const rows = await window.firebase.loadTop(20);
+      if (!rows.length) { lbBody.innerHTML = "<tr><td colspan='4'>No scores yet.</td></tr>"; }
+      else {
+        let i=1; lbBody.innerHTML = rows.map(r=>{
+          const when = r.ts?.toDate ? r.ts.toDate() : new Date();
+          return `<tr><td>${i++}</td><td>${escapeHtml(r.name||"Player")}</td><td style="text-align:right">${r.score|0}</td><td>${when.toLocaleDateString()}</td></tr>`;
+        }).join("");
+      }
+    }catch(err){ lbBody.innerHTML = `<tr><td colspan="4">Error: ${escapeHtml(err.message||String(err))}</td></tr>`; }
+    lbModal.style.display="flex";
+  });
+  lbClose.addEventListener("pointerdown", e=>{ e.preventDefault(); lbModal.style.display="none"; });
+  function escapeHtml(x){ return (x||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m])); }
+
+  // Game state
+  const state = {
+    running:false, paused:false, over:false,
+    score:0, best:Number(localStorage.getItem("dodger_best")||0),
+    time:0, last:performance.now(),
+    player:{ x:0, y:0, w:48, h:48, speed:420, vx:0, scale:1, invUntil:0 },
+    blocks:[], blockTimer:0, difficulty:1,
+    input:{ left:false, right:false, swipeVX:0 },
+    bullets:[],
+    ammo:0,
+    lives:0,
+    shrinkCharges:0,
+    powerups:[], powTimer:2.5,
+    effects:{ shrinkUntil:0, shieldUntil:0, slowUntil:0, magnetUntil:0 },
+    coins:[]
+  };
+  bestEl.textContent = state.best; ammoEl.textContent = state.ammo; livesEl.textContent = state.lives; shrinkCountEl.textContent = state.shrinkCharges;
+
+  function resetPlayer(){
+    const base = Math.max(36, Math.min(56, Math.floor(Math.min(width,height)*0.06)));
+    state.player.w = base; state.player.h = base;
+    state.player.x = (width - state.player.w)/2; state.player.y = height - state.player.h - 22; state.player.vx = 0; state.player.scale=1;
+  }
+  resetPlayer();
+
+  // Input (pads + swipe)
+  function bindPad(el,dir){ const down=(e)=>{ e.preventDefault(); if(dir<0) state.input.left=true; else state.input.right=true; };
+    const up=(e)=>{ if(dir<0) state.input.left=false; else state.input.right=false; };
+    el.addEventListener("pointerdown", down); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up); el.addEventListener("pointerleave", up); }
+  bindPad(leftPad,-1); bindPad(rightPad,1);
+
+  let swipeActive=false, swipeStartX=0;
+  canvas.addEventListener("pointerdown", e=>{ swipeActive=true; swipeStartX=e.clientX; });
+  window.addEventListener("pointermove", e=>{ if(!swipeActive) return; const dx=e.clientX-swipeStartX; state.input.swipeVX=dx*3; });
+  window.addEventListener("pointerup", ()=>{ swipeActive=false; state.input.swipeVX=0; });
+
+  // FIRE & SHRINK
+  firePad.addEventListener("pointerdown", e=>{ e.preventDefault(); shoot(); });
+  shrinkBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); useShrink(); });
+
+  window.addEventListener("keydown", e=>{
+    if(e.key==="ArrowLeft"||e.key==="a") state.input.left=true;
+    if(e.key==="ArrowRight"||e.key==="d") state.input.right=true;
+    if(e.key===" ") { e.preventDefault(); shoot(); }
+    if(e.key==="Shift") { e.preventDefault(); useShrink(); }
+  });
+  window.addEventListener("keyup", e=>{
+    if(e.key==="ArrowLeft"||e.key==="a") state.input.left=false;
+    if(e.key==="ArrowRight"||e.key==="d") state.input.right=false;
+  });
+
+  startBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); startGame(); });
+  pauseBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); togglePause(); });
+
+  function startGame(){
+    state.blocks.length=0; state.bullets.length=0; state.powerups.length=0; state.coins.length=0;
+    state.score=0; state.time=0; state.blockTimer=0; state.powTimer=2.5;
+    state.difficulty=1; state.over=false; state.paused=false;
+    state.effects = { shrinkUntil:0, shieldUntil:0, slowUntil:0, magnetUntil:0 };
+    state.player.invUntil = 0;
+    state.ammo=0; state.shrinkCharges=0; state.lives=0;
+    ammoEl.textContent="0"; livesEl.textContent="0"; shrinkCountEl.textContent="0";
+    resetPlayer();
+    overlay.style.display="none"; state.running=true; state.last=performance.now();
+    requestAnimationFrame(loop);
+  }
+
+  async function gameOver(){
+    state.over=true; state.running=false; overlay.style.display="flex";
+    overlay.querySelector(".title").textContent = "Game Over";
+    const old = overlay.querySelector(".subtitle"); if (old) old.remove();
+    const p = document.createElement("div"); p.className="subtitle";
+    p.innerHTML = `You scored <strong>${Math.floor(state.score)}</strong>. ${(state.score>state.best)?`<span style="color:var(--danger)">New high score!</span>`:`Try again!`}`;
+    overlay.querySelector(".card").insertBefore(p, overlay.querySelector(".go"));
+    state.best=Math.max(state.best, Math.floor(state.score)); localStorage.setItem("dodger_best", String(state.best)); bestEl.textContent=state.best; startBtn.textContent="Play Again";
+    if (window.firebase?.saveScore) { try { await window.firebase.saveScore(state.score); } catch(_){} }
+  }
+
+  function togglePause(){
+    if(!state.running || state.over) return;
+    state.paused=!state.paused; pauseBtn.textContent = state.paused ? "Resume" : "Pause";
+    if(!state.paused){ state.last=performance.now(); requestAnimationFrame(loop); }
+    else { ctx.save(); ctx.fillStyle="rgba(0,0,0,0.25)"; ctx.fillRect(0,0,width,height); ctx.fillStyle="rgba(255,255,255,0.85)";
+      ctx.font="700 20px system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif"; ctx.textAlign="center"; ctx.fillText("Paused", width/2, height*0.45); ctx.restore(); }
+  }
+
+  // Helpers
+  function rand(min,max){ return Math.random()*(max-min)+min; }
+  function roundRect(ctx,x,y,w,h,r,fill){ ctx.beginPath(); const rr=Math.min(r,w/2,h/2);
+    ctx.moveTo(x+rr,y); ctx.arcTo(x+w,y, x+w,y+h, rr); ctx.arcTo(x+w,y+h, x,y+h, rr);
+    ctx.arcTo(x,y+h, x,y, rr); ctx.arcTo(x,y, x+w,y, rr); ctx.closePath(); if(fill) ctx.fill(); }
+
+  // Spawners
+  function spawnBlock(){
+    const size = rand(Math.max(22,width*0.03), Math.max(38,width*0.07));
+    const x = rand(0, width - size);
+    const speed = rand(140, 190) * state.difficulty;
+    state.blocks.push({ x, y:-size, w:size, h:size, vy:speed });
+  }
+  function spawnPowerup(){
+    // weights
+    const r = Math.random()*100;
+    let type = "blaster";
+    if (r<30) type="blaster";
+    else if (r<50) type="shrink";
+    else if (r<65) type="shield";
+    else if (r<80) type="slow";
+    else if (r<90) type="magnet";
+    else type="life";
+
+    const size = Math.max(26, Math.floor(Math.min(width,height)*0.05));
+    const x = rand(0, width - size);
+    const vy = rand(90, 130);
+    state.powerups.push({ type, x, y:-size, w:size, h:size, vy });
+  }
+  function spawnCoin(){
+    const size = Math.max(18, Math.floor(Math.min(width,height)*0.04));
+    const x = rand(0, width - size);
+    const vy = rand(80, 120);
+    state.coins.push({ x, y:-size, w:size, h:size, vy });
+  }
+
+  // Actions
+  function shoot(){
+    if (state.ammo <= 0 || state.over || !state.running) return;
+    state.ammo--; ammoEl.textContent = state.ammo;
+    const p = state.player, cx = p.x + (p.w*p.scale)/2 - 4;
+    state.bullets.push({ x: cx, y: p.y - 6, w: 8, h: 14, vy: -620 });
+  }
+  function useShrink(){
+    if (state.shrinkCharges <= 0 || state.over || !state.running) return;
+    state.shrinkCharges--; shrinkCountEl.textContent = state.shrinkCharges;
+    state.effects.shrinkUntil = Math.max(state.effects.shrinkUntil, state.time) + 6;
+  }
+
+  // Update & draw
+  function update(dt){
+    state.time += dt;
+    state.score += dt*10;
+    scoreEl.textContent = Math.floor(state.score);
+    state.difficulty = 1 + Math.min(2.2, state.time/24);
+
+    const slowActive = state.effects.slowUntil > state.time;
+    const worldDT = dt * (slowActive ? 0.55 : 1);
+    state.player.scale = (state.effects.shrinkUntil > state.time) ? 0.6 : 1;
+
+    const p = state.player, base = p.speed * state.difficulty * 0.95;
+    let targetVX = 0;
+    if(state.input.left) targetVX -= base;
+    if(state.input.right) targetVX += base;
+    targetVX += state.input.swipeVX;
+    p.vx += (targetVX - p.vx) * Math.min(1, dt*10);
+    p.x += p.vx * dt;
+    const pw = p.w * p.scale, ph = p.h * p.scale;
+    if (p.x < 0) { p.x = 0; p.vx = Math.max(0, p.vx); }
+    if (p.x + pw > width) { p.x = width - pw; p.vx = Math.min(0, p.vx); }
+
+    // Spawns
+    state.blockTimer -= worldDT;
+    const interval = Math.max(0.22, 0.9 - state.time*0.03);
+    if (state.blockTimer <= 0) {
+      spawnBlock();
+      if (state.time > 12 && Math.random() < 0.35) spawnBlock();
+      state.blockTimer = interval;
+    }
+    state.powTimer -= worldDT;
+    if (state.powTimer <= 0) {
+      if (Math.random() < 0.35) spawnCoin(); else spawnPowerup();
+      state.powTimer = rand(8, 13);
+    }
+
+    // Move blocks
+    for (let i=state.blocks.length-1; i>=0; i--) {
+      const b = state.blocks[i]; b.y += b.vy * worldDT;
+      if (b.y - b.h > height + 8) { state.blocks.splice(i,1); continue; }
+    }
+
+    // Power-ups (+magnet)
+    const magnet = state.effects.magnetUntil > state.time;
+    for (let i=state.powerups.length-1; i>=0; i--) {
+      const u = state.powerups[i];
+      if (magnet) {
+        const cx = (p.x + pw/2) - (u.x + u.w/2);
+        const cy = (p.y + ph/2) - (u.y + u.h/2);
+        const dist = Math.max(1, Math.hypot(cx, cy));
+        u.x += (cx/dist) * 220 * worldDT;
+        u.y += (cy/dist) * 220 * worldDT;
+      } else {
+        u.y += u.vy * worldDT;
+      }
+      if (u.y - u.h > height + 8) { state.powerups.splice(i,1); continue; }
+      // collect
+      if (u.x < p.x + pw && u.x + u.w > p.x && u.y < p.y + ph && u.y + u.h > p.y) {
+        if (u.type === "blaster") { state.ammo += 6; ammoEl.textContent = state.ammo; }
+        else if (u.type === "shrink") { state.shrinkCharges += 1; shrinkCountEl.textContent = state.shrinkCharges; }
+        else if (u.type === "shield") { state.effects.shieldUntil = Math.max(state.effects.shieldUntil, state.time) + 6; }
+        else if (u.type === "slow")   { state.effects.slowUntil   = Math.max(state.effects.slowUntil,   state.time) + 6; }
+        else if (u.type === "magnet") { state.effects.magnetUntil = Math.max(state.effects.magnetUntil, state.time) + 8; }
+        else if (u.type === "life")   { state.lives += 1; livesEl.textContent = state.lives; }
+        state.powerups.splice(i,1);
+      }
+    }
+
+    // Coins
+    for (let i=state.coins.length-1; i>=0; i--) {
+      const c = state.coins[i];
+      c.y += c.vy * worldDT;
+      if (c.y - c.h > height + 8) { state.coins.splice(i,1); continue; }
+      if (c.x < p.x + pw && c.x + c.w > p.x && c.y < p.y + ph && c.y + c.h > p.y) {
+        state.coins.splice(i,1);
+        coinCountEl.textContent = String((Number(coinCountEl.textContent)||0)+1);
+        window.firebase?.addCoins?.(1).catch(()=>{});
+      }
+    }
+
+    // Bullets
+    for (let i=state.bullets.length-1; i>=0; i--) {
+      const bullet = state.bullets[i]; bullet.y += bullet.vy * dt;
+      if (bullet.y + bullet.h < -10) { state.bullets.splice(i,1); continue; }
+      for (let j=state.blocks.length-1; j>=0; j--) {
+        const b = state.blocks[j];
+        if (bullet.x < b.x + b.w && bullet.x + bullet.w > b.x && bullet.y < b.y + b.h && bullet.y + bullet.h > b.y) {
+          state.blocks.splice(j,1);
+          state.bullets.splice(i,1);
+          state.score += 5;
+          break;
+        }
+      }
+    }
+
+    // Block vs player
+    for (let i=state.blocks.length-1; i>=0; i--) {
+      const b = state.blocks[i];
+      if (b.x < p.x + pw && b.x + b.w > p.x && b.y < p.y + ph && b.y + b.h > p.y) {
+        if (state.player.invUntil > state.time) { state.blocks.splice(i,1); continue; }
+        const shieldActive = state.effects.shieldUntil > state.time;
+        if (shieldActive) {
+          state.effects.shieldUntil = Math.max(state.time, state.effects.shieldUntil - 0.5);
+          state.player.invUntil = state.time + 0.5;
+          state.blocks.splice(i,1);
+          continue;
+        }
+        if (state.lives > 0) {
+          state.lives--; livesEl.textContent = state.lives;
+          state.player.invUntil = state.time + 1.2;
+          state.blocks.splice(i,1);
+          continue;
+        }
+        gameOver(); return;
+      }
+    }
+  }
+
+  function draw(){
+    const g = ctx.createLinearGradient(0,0,0,height); g.addColorStop(0,"#0b1220"); g.addColorStop(1,"#0c0f14");
+    ctx.fillStyle = g; ctx.fillRect(0,0,width,height);
+    ctx.globalAlpha = 0.08; ctx.strokeStyle = "#8ab4ff"; ctx.lineWidth = 1;
+    const grid = Math.max(20, Math.floor(Math.min(width, height)*0.04));
+    ctx.beginPath(); for(let x=(width%grid); x<width; x+=grid){ ctx.moveTo(x,0); ctx.lineTo(x,height); }
+    for(let y=(height%grid); y<height; y+=grid){ ctx.moveTo(0,y); ctx.lineTo(width,y); } ctx.stroke(); ctx.globalAlpha = 1;
+
+    const p = state.player, pw = p.w*p.scale, ph = p.h*p.scale;
+
+    // shield aura
+    if (state.effects.shieldUntil > state.time) {
+      ctx.save();
+      ctx.globalAlpha = 0.25 + 0.15*Math.sin(state.time*8);
+      ctx.fillStyle = "#4ade80";
+      roundRect(ctx, p.x-6, p.y-6, pw+12, ph+12, Math.min(16, pw*0.35), true);
+      ctx.restore();
+    }
+    if (state.player.invUntil > state.time) { ctx.globalAlpha = 0.6 + 0.4*Math.sin(state.time*30); }
+
+    // player
+    ctx.fillStyle = "#58a6ff"; roundRect(ctx, p.x, p.y, pw, ph, Math.min(10, pw*0.25), true);
+    ctx.globalAlpha = 1;
+
+    // blocks
+    for (const b of state.blocks) {
+      ctx.fillStyle = "#ff6b6b";
+      roundRect(ctx, b.x, b.y, b.w, b.h, Math.min(10, b.w*0.25), true);
+      ctx.globalAlpha = 0.15; ctx.fillStyle = "#ffffff";
+      roundRect(ctx, b.x+b.w*0.1, b.y+b.h*0.08, b.w*0.8, b.h*0.18, 8, true); ctx.globalAlpha = 1;
+    }
+
+    // coins (gold with knurling + D)
+    for (const c of state.coins) {
+      const r = c.w/2, cx = c.x + r, cy = c.y + r;
+      const grad = ctx.createRadialGradient(cx-r*0.4, cy-r*0.4, r*0.2, cx, cy, r);
+      grad.addColorStop(0, "#ffe38a"); grad.addColorStop(0.55, "#f5c240"); grad.addColorStop(1, "#c68a12");
+      ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,.25)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, r-1, 0, Math.PI*2); ctx.stroke();
+      ctx.save(); ctx.translate(cx,cy); ctx.fillStyle="rgba(0,0,0,.28)";
+      for (let i=0;i<16;i++){ const a=i*(Math.PI*2/16); ctx.beginPath(); ctx.arc(Math.cos(a)*(r-3), Math.sin(a)*(r-3), 1.8, 0, Math.PI*2); ctx.fill(); }
+      ctx.restore();
+      ctx.beginPath(); ctx.arc(cx, cy, r*0.55, 0, Math.PI*2); ctx.fillStyle="rgba(0,0,0,.15)"; ctx.fill();
+      ctx.fillStyle="#2b1900"; ctx.font=`${Math.max(10, r*0.9)}px system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("D", cx, cy+1);
+    }
+
+    // bullets
+    ctx.fillStyle = "#f8fafc";
+    for (const b of state.bullets) roundRect(ctx, b.x, b.y, b.w, b.h, 4, true);
+  }
+
+  function loop(now){
+    if (!state.running || state.paused || state.over) return;
+    const dt = Math.min(0.033, (now - state.last)/1000);
+    state.last = now;
+    update(dt); draw();
+    requestAnimationFrame(loop);
+  }
+
+  // first paint
+  draw();
+
+})();
 </script>
 </body>
 </html>

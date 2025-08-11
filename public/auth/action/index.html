@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Dodger – Account Action</title>
+<style>
+  :root{--bg:#0b1220;--fg:#e9efff;--muted:#8a94a6;--accent:#58a6ff;--good:#4ade80;--bad:#ff6b6b;}
+  *{box-sizing:border-box} html,body{height:100%;margin:0}
+  body{display:flex;align-items:center;justify-content:center;background:radial-gradient(1000px 700px at 50% 40%, rgba(88,166,255,.12), var(--bg) 60%); color:var(--fg); font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  .card{width:min(560px,92vw);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);border-radius:16px;padding:18px;backdrop-filter:blur(8px)}
+  h1{margin:0 0 10px;font-size:24px}
+  p{margin:8px 0;color:var(--muted)}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  input{width:100%;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:#0f141f;color:var(--fg)}
+  button{padding:12px 14px;border-radius:12px;border:none;font-weight:800}
+  .primary{background:var(--accent);color:#0b1220}
+  .link{background:transparent;color:var(--fg);border:1px solid rgba(255,255,255,.18)}
+  .ok{color:var(--good)} .err{color:var(--bad)}
+  .hide{display:none}
+  small{color:var(--muted)}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1 id="title">Account action</h1>
+    <div id="loading">Checking your link…</div>
+
+    <!-- Reset Password UI -->
+    <div id="reset" class="hide">
+      <p>Enter a new password for your account.</p>
+      <div class="row">
+        <input id="pw1" type="password" placeholder="New password (min 6)" autocomplete="new-password">
+        <input id="pw2" type="password" placeholder="Confirm new password" autocomplete="new-password">
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button id="doReset" class="primary">Set new password</button>
+        <button id="goBack" class="link">Back to game</button>
+      </div>
+      <p id="resetMsg"></p>
+    </div>
+
+    <!-- Verify Email UI -->
+    <div id="verify" class="hide">
+      <p>Click verify to confirm your email.</p>
+      <div class="row" style="margin-top:10px">
+        <button id="doVerify" class="primary">Verify email</button>
+        <button id="goBack2" class="link">Back to game</button>
+      </div>
+      <p id="verifyMsg"></p>
+    </div>
+
+    <!-- Recover Email UI -->
+    <div id="recover" class="hide">
+      <p>Click restore to recover your previous email on this account.</p>
+      <div class="row" style="margin-top:10px">
+        <button id="doRecover" class="primary">Restore email</button>
+        <button id="goBack3" class="link">Back to game</button>
+      </div>
+      <p id="recoverMsg"></p>
+    </div>
+  </div>
+
+  <!-- Firebase v10 (modular) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+    import {
+      getAuth, applyActionCode, checkActionCode, confirmPasswordReset,
+      verifyPasswordResetCode
+    } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+
+    // ---- Your config
+    const firebaseConfig = {
+      apiKey: "AIzaSyD37Lc_tHwEkmXSHwDr6QUTNeWXGOKAftg",
+      authDomain: "dodger-4aad1.firebaseapp.com",
+      projectId: "dodger-4aad1",
+      storageBucket: "dodger-4aad1.appspot.com",
+      messagingSenderId: "148070811748",
+      appId: "1:148070811748:web:1ed51b4872b9d9106b3771",
+      measurementId: "G-NV3R6CEYH7"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    // ---- Helpers
+    const qs = new URLSearchParams(location.search);
+    const mode     = qs.get("mode");
+    const oobCode  = qs.get("oobCode");
+    const continueUrl = qs.get("continueUrl") || (location.origin + "/");
+
+    const $ = (id)=>document.getElementById(id);
+    const show = (id)=>$(id).classList.remove("hide");
+    const hide = (id)=>$(id).classList.add("hide");
+
+    const title = $("title");
+    const loading = $("loading");
+
+    function goHome(){ location.href = continueUrl; }
+    $("goBack").onclick = $("goBack2").onclick = $("goBack3").onclick = goHome;
+
+    // ---- Router
+    (async function route(){
+      try{
+        if (!mode || !oobCode) throw new Error("Missing action parameters.");
+
+        hide("reset"); hide("verify"); hide("recover");
+        if (mode === "resetPassword") {
+          title.textContent = "Reset password";
+          // Validate code first to show the form
+          await verifyPasswordResetCode(auth, oobCode);
+          hide("loading"); show("reset");
+        } else if (mode === "verifyEmail") {
+          title.textContent = "Verify email";
+          hide("loading"); show("verify");
+        } else if (mode === "recoverEmail") {
+          title.textContent = "Recover email";
+          // Optional: check to ensure valid code before showing
+          await checkActionCode(auth, oobCode);
+          hide("loading"); show("recover");
+        } else {
+          throw new Error("Unknown action.");
+        }
+      } catch(err){
+        loading.textContent = `Link error: ${err.message || err}`;
+      }
+    })();
+
+    // ---- Handlers
+    $("doReset").onclick = async ()=>{
+      const p1 = $("pw1").value.trim();
+      const p2 = $("pw2").value.trim();
+      const msg = $("resetMsg");
+      msg.textContent = "";
+      if (p1.length < 6) { msg.innerHTML = '<span class="err">Password must be at least 6 characters.</span>'; return; }
+      if (p1 !== p2) { msg.innerHTML = '<span class="err">Passwords do not match.</span>'; return; }
+      try{
+        await confirmPasswordReset(auth, oobCode, p1);
+        msg.innerHTML = '<span class="ok">Password updated! You can now sign in.</span>';
+        setTimeout(goHome, 1200);
+      }catch(err){
+        msg.innerHTML = `<span class="err">${err.message || err}</span>`;
+      }
+    };
+
+    $("doVerify").onclick = async ()=>{
+      const msg = $("verifyMsg");
+      msg.textContent = "";
+      try{
+        await applyActionCode(auth, oobCode);
+        msg.innerHTML = '<span class="ok">Email verified!</span>';
+        setTimeout(goHome, 1200);
+      }catch(err){
+        msg.innerHTML = `<span class="err">${err.message || err}</span>`;
+      }
+    };
+
+    $("doRecover").onclick = async ()=>{
+      const msg = $("recoverMsg");
+      msg.textContent = "";
+      try{
+        // checkActionCode gives info; applyActionCode performs the revert
+        await applyActionCode(auth, oobCode);
+        msg.innerHTML = '<span class="ok">Email restored!</span>';
+        setTimeout(goHome, 1200);
+      }catch(err){
+        msg.innerHTML = `<span class="err">${err.message || err}</span>`;
+      }
+    };
+  </script>
+  <noscript><small>Enable JavaScript to complete this action.</small></noscript>
+</body>
+</html>

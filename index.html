@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Dodger — Leaderboard + Accounts + Power-Ups</title>
+<title>Dodger — Coins + Store + Power-Ups</title>
 <style>
   :root { --bg:#0c0f14; --fg:#e9efff; --accent:#58a6ff; --danger:#ff6b6b; --muted:#8a94a6; --good:#4ade80; --gold:#ffd166; }
   * { box-sizing:border-box; }
@@ -14,44 +14,34 @@
   body { overflow:hidden; touch-action:none; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
   canvas { display:block; width:100%; height:100%; }
 
-  /* safe area + header layout */
   .safe { padding-top: env(safe-area-inset-top); }
-  header {
-    position:absolute; top:0; left:0; right:0; z-index:8; display:flex; flex-direction:column; gap:8px;
-    padding:8px 10px; pointer-events:none;
-  }
+  header { position:absolute; top:0; left:0; right:0; z-index:8; display:flex; flex-direction:column; gap:8px; padding:8px 10px; pointer-events:none; }
   .row { display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
-  .row + .row { margin-top:6px; } /* keep rows from colliding */
-  .left { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  .right { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-
-  .hud, .btn { pointer-events:auto; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:6px 10px; }
+  .row + .row { margin-top:6px; }
+  .left, .right { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .hud, .btn, .chip { pointer-events:auto; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:6px 10px; }
   .hud { display:flex; gap:8px; align-items:center; }
   .btn { font-weight:700; }
   .btn:active { transform: translateY(1px); }
-  #userChip { pointer-events:auto; background:rgba(88,166,255,0.18); border-color:rgba(88,166,255,0.4); border-radius:12px; padding:6px 10px; max-width:70vw; }
+  #userChip { background:rgba(88,166,255,0.18); border-color:rgba(88,166,255,0.4); border-radius:12px; padding:6px 10px; max-width:55vw; }
+  #coinBtn { display:flex; align-items:center; gap:6px; cursor:pointer; }
+  #coinBtn .icon { width:14px; height:14px; border-radius:50%; background:radial-gradient(circle at 35% 35%, #fff2, #fff0), #ffd54a; box-shadow: inset 0 0 0 2px #e7b600; }
+  #coinCount { font-variant-numeric:tabular-nums; }
 
-  .controls {
-    position:absolute; left:0; right:0; bottom:0; z-index:6; display:flex; justify-content:space-between; gap:12px; padding:14px; pointer-events:none;
-  }
-  .pad {
-    flex:1; min-height:92px; border-radius:16px; pointer-events:auto;
+  .controls { position:absolute; left:0; right:0; bottom:0; z-index:6; display:flex; justify-content:space-between; gap:12px; padding:14px; pointer-events:none; }
+  .pad { flex:1; min-height:92px; border-radius:16px; pointer-events:auto;
     background:linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03));
-    border:1px solid rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center;
-  }
+    border:1px solid rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; }
   .pad span { font-size:28px; filter: drop-shadow(0 2px 0 rgba(0,0,0,0.35)); }
   .pad.fire { flex:0.9; }
   .ammo { color:var(--good); font-variant-numeric:tabular-nums; }
 
-  /* Ability bar (shrink activator) */
   #abilities { position:absolute; left:0; right:0; bottom:110px; display:flex; justify-content:center; z-index:6; pointer-events:none; }
   #shrinkBtn { pointer-events:auto; display:flex; align-items:center; gap:8px; }
   #shrinkCount { min-width:1.6em; text-align:center; }
 
-  .overlay {
-    position:absolute; inset:0; z-index:7; display:flex; align-items:center; justify-content:center;
-    background: radial-gradient(1200px 800px at 50% 40%, rgba(88,166,255,0.12), rgba(12,15,20,0.92) 60%); text-align:center; padding:24px;
-  }
+  .overlay { position:absolute; inset:0; z-index:7; display:flex; align-items:center; justify-content:center;
+    background: radial-gradient(1200px 800px at 50% 40%, rgba(88,166,255,0.12), rgba(12,15,20,0.92) 60%); text-align:center; padding:24px; }
   .card { max-width:560px; width:92%; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.14); border-radius:18px; padding:18px; backdrop-filter:blur(10px); }
   .title { font-size:26px; font-weight:800; margin:4px 0 10px; }
   .subtitle { color:var(--muted); margin-bottom:14px; }
@@ -67,13 +57,17 @@
   .btn2 { flex:1; padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.06); color:var(--fg); font-weight:700; }
   .btn2.primary { background:var(--accent); color:#0b1220; border-color:transparent; }
   .x { position:absolute; top:10px; right:12px; background:transparent; border:none; color:var(--muted); font-size:22px; }
+
+  /* Store list */
+  .storeList { display:grid; gap:10px; }
+  .storeItem { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px; border-radius:12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); }
+  .swatch { width:22px; height:22px; border-radius:6px; border:2px solid rgba(255,255,255,0.25); }
 </style>
 </head>
 <body class="safe">
 <canvas id="game" aria-label="Dodger game area"></canvas>
 
 <header class="safe">
-  <!-- Top row: HUD only -->
   <div class="row">
     <div class="left">
       <div class="hud"><strong>Score:</strong><span id="score">0</span></div>
@@ -81,11 +75,14 @@
       <div class="hud"><strong>Ammo:</strong><span id="ammo" class="ammo">0</span></div>
       <div class="hud"><strong>Lives:</strong><span id="lives" class="ammo">0</span></div>
     </div>
-    <div class="right"><!-- kept empty to avoid wrap-pressure on narrow screens --></div>
+    <div class="right"></div>
   </div>
-  <!-- Second row: user + buttons (Leaderboard moved here) -->
+
   <div class="row">
-    <div class="left"><div id="userChip">Connecting…</div></div>
+    <div class="left">
+      <div id="userChip">Connecting…</div>
+      <div id="coinBtn" class="chip" title="Store"><span class="icon"></span><span id="coinCount">0</span></div>
+    </div>
     <div class="right">
       <button class="btn" id="lbBtn">Leaderboard</button>
       <button class="btn" id="nameBtn">Set name</button>
@@ -111,7 +108,7 @@
 <div class="overlay" id="overlay">
   <div class="card">
     <div class="title">DODGER</div>
-    <div class="subtitle">Avoid blocks. Power-ups: 🔫 Blaster, ✂ Shrink, 🛡 Shield, 🐌 Slow, 🧲 Magnet, ❤️ Life.</div>
+    <div class="subtitle">Avoid blocks. Collect 🪙 coins. Power-ups: 🔫 ✂ 🛡 🐌 🧲 ❤️</div>
     <button class="go" id="startBtn">Start</button>
     <div class="muted">Tip: Add to Home Screen on iPhone for full-screen play.</div>
   </div>
@@ -162,6 +159,19 @@
   </div>
 </div>
 
+<!-- Store modal -->
+<div class="modal" id="storeModal">
+  <div class="panel">
+    <button class="x" id="storeClose">×</button>
+    <h2>Store</h2>
+    <div class="muted" id="storeMsg">Spend coins on cosmetics. Coins are earned by playing.</div>
+    <div class="storeList" id="storeList">
+      <!-- items injected -->
+    </div>
+    <div class="muted">Coins: <strong id="storeCoins">0</strong></div>
+  </div>
+</div>
+
 <!-- ===== Firebase (Auth + Firestore) ===== -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
@@ -171,7 +181,8 @@
     updateProfile, signOut
   } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
   import {
-    getFirestore, collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp
+    getFirestore, collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp,
+    doc, getDoc, setDoc, updateDoc, increment
   } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -191,7 +202,34 @@
   // guest so game works before sign in
   signInAnonymously(auth).catch(()=>{});
 
-  // expose helpers
+  async function ensureUserDoc(u){
+    if(!u) return;
+    const ref = doc(db, "users", u.uid);
+    const snap = await getDoc(ref);
+    if(!snap.exists()){
+      await setDoc(ref, { coins: 0, skin: "blue", name: u.displayName || u.email || "Player", created: serverTimestamp() });
+    }
+  }
+  async function getCoins(u){
+    if(!u) return 0;
+    const snap = await getDoc(doc(db,"users",u.uid));
+    return (snap.exists() && typeof snap.data().coins==="number") ? snap.data().coins : 0;
+  }
+  async function addCoins(u, n){
+    if(!u) return 0;
+    await updateDoc(doc(db,"users",u.uid), { coins: increment(n) });
+    return getCoins(u);
+  }
+  async function buySkin(u, skinId, cost){
+    if(!u) throw new Error("Sign in to buy.");
+    const ref = doc(db,"users",u.uid);
+    const snap = await getDoc(ref);
+    const data = snap.exists() ? snap.data() : { coins:0 };
+    if((data.coins||0) < cost) throw new Error("Not enough coins.");
+    await updateDoc(ref, { coins: increment(-cost), skin: skinId });
+    return getCoins(u);
+  }
+
   window.firebase = {
     auth, db,
     onUser(cb){ return onAuthStateChanged(auth, cb); },
@@ -199,6 +237,7 @@
       if (!auth.currentUser) return;
       const clean = String(name||"Player").trim().slice(0,24);
       await updateProfile(auth.currentUser, { displayName: clean });
+      await ensureUserDoc(auth.currentUser);
       return clean;
     },
     async saveScore(score){
@@ -217,11 +256,20 @@
       const qy = query(collection(db,"scores"), orderBy("score","desc"), orderBy("ts","asc"), limit(n));
       const snap = await getDocs(qy);
       return snap.docs.map(d => ({ id:d.id, ...d.data() }));
-    }
+    },
+    ensureUserDoc, getCoins, addCoins, buySkin
   };
 
-  // auth UI wiring
+  // auth UI
   const userChip = document.getElementById("userChip");
+  const coinBtn = document.getElementById("coinBtn");
+  const coinCount = document.getElementById("coinCount");
+  const storeCoins = document.getElementById("storeCoins");
+  const storeModal = document.getElementById("storeModal");
+  const storeClose = document.getElementById("storeClose");
+  const storeList  = document.getElementById("storeList");
+  const storeMsg   = document.getElementById("storeMsg");
+
   const authBtn = document.getElementById("authBtn");
   const authModal = document.getElementById("authModal");
   const authClose = document.getElementById("authClose");
@@ -232,15 +280,15 @@
   const btnUp    = document.getElementById("authSignup");
   const btnOut   = document.getElementById("authSignout");
 
-  onAuthStateChanged(auth, (u)=>{
-    if (!u){ userChip.textContent = "Guest (not saved)"; return; }
-    userChip.textContent = u.displayName ? `Signed in: ${u.displayName}` :
-                           u.email ? `Signed in: ${u.email}` : "Signed in";
+  onAuthStateChanged(auth, async (u)=>{
+    if (!u){ userChip.textContent = "Guest (not saved)"; coinCount.textContent = "0"; return; }
+    await ensureUserDoc(u);
+    userChip.textContent = u.displayName ? `Signed in: ${u.displayName}` : (u.email ? `Signed in: ${u.email}` : "Signed in");
+    coinCount.textContent = String(await getCoins(u));
   });
 
   function openModal(m){ m.style.display="flex"; }
   function closeModal(m){ m.style.display="none"; }
-
   document.querySelectorAll(".modal").forEach(m=>{
     m.addEventListener("pointerdown", (e)=>{ if(e.target === m) closeModal(m); }, {passive:true});
   });
@@ -262,15 +310,60 @@
       const cred = await createUserWithEmailAndPassword(auth, authEmail.value, authPass.value);
       const def = (authEmail.value||"").split("@")[0].slice(0,24) || "Player";
       await updateProfile(cred.user, { displayName: def });
+      await ensureUserDoc(cred.user);
       closeModal(authModal);
     }catch(err){ authMsg.textContent = err.message; }
   });
   btnOut.addEventListener("pointerdown", async e=>{
     e.preventDefault(); await signOut(auth); closeModal(authModal);
   });
+
+  // Store UI
+  const SKINS = [
+    { id:"blue",  name:"Blue square",  color:"#58a6ff", cost:  0 },
+    { id:"lime",  name:"Lime square",  color:"#4ade80", cost: 50 },
+    { id:"rose",  name:"Rose square",  color:"#f472b6", cost: 75 }
+  ];
+  function renderStore(currentCoins){
+    storeList.innerHTML = "";
+    SKINS.forEach(s=>{
+      const row = document.createElement("div"); row.className="storeItem";
+      row.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="swatch" style="background:${s.color}"></div>
+          <div><div style="font-weight:700">${s.name}</div><div class="muted">Cost: 🪙 ${s.cost}</div></div>
+        </div>
+        <button class="btn2 ${s.cost? 'primary':''}" data-skin="${s.id}" ${s.cost>currentCoins?'disabled':''}>${s.cost?`Buy`:`Owned`}</button>`;
+      storeList.appendChild(row);
+    });
+    storeCoins.textContent = String(currentCoins);
+  }
+  coinBtn.addEventListener("pointerdown", async e=>{
+    e.preventDefault();
+    const u = auth.currentUser;
+    if(!u || u.isAnonymous){ storeMsg.textContent="Sign in to keep coins and buy cosmetics."; }
+    else { storeMsg.textContent="Spend coins on cosmetics. Coins are earned by playing."; }
+    const c = u && !u.isAnonymous ? await getCoins(u) : 0;
+    renderStore(c);
+    openModal(storeModal);
+  });
+  storeClose.addEventListener("pointerdown", e=>{ e.preventDefault(); closeModal(storeModal); });
+  storeList.addEventListener("pointerdown", async e=>{
+    const btn = e.target.closest("button[data-skin]");
+    if(!btn) return;
+    const id = btn.getAttribute("data-skin");
+    const skin = SKINS.find(s=>s.id===id);
+    try{
+      const u = auth.currentUser;
+      if(!u || u.isAnonymous) throw new Error("Please sign in to buy.");
+      const c = await buySkin(u, id, skin.cost);
+      coinCount.textContent = String(c);
+      renderStore(c);
+    }catch(err){ storeMsg.textContent = err.message; }
+  });
 </script>
 
-<!-- ===== Game code (power-ups etc.) ===== -->
+<!-- ===== Game code (coins + power-ups) ===== -->
 <script>
 (function () {
   "use strict";
@@ -312,8 +405,8 @@
   const lbBody = document.querySelector("#lbTable tbody");
   const shrinkBtn = document.getElementById("shrinkBtn");
   const shrinkCountEl = document.getElementById("shrinkCount");
+  const coinCount = document.getElementById("coinCount");
 
-  // Prevent scroll/zoom globally, but let overlays work
   const prevent=(e)=>{ if (e.target.closest(".overlay") || e.target.closest(".modal")) return; e.preventDefault(); };
   ["touchstart","touchmove","touchend","gesturestart"].forEach(ev=>document.addEventListener(ev, prevent, { passive:false }));
 
@@ -359,7 +452,9 @@
     lives:0,
     shrinkCharges:0,
     powerups:[], powTimer:2.5,
-    effects:{ shrinkUntil:0, shieldUntil:0, slowUntil:0, magnetUntil:0 }
+    effects:{ shrinkUntil:0, shieldUntil:0, slowUntil:0, magnetUntil:0 },
+    coinsOnRun:0,
+    coins:[] /* falling coins */
   };
   bestEl.textContent = state.best; ammoEl.textContent = state.ammo; livesEl.textContent = state.lives; shrinkCountEl.textContent = state.shrinkCharges;
 
@@ -370,20 +465,20 @@
   }
   resetPlayer();
 
-  // Input (pads + swipe)
+  // Input
   function bindPad(el,dir){ const down=(e)=>{ e.preventDefault(); if(dir<0) state.input.left=true; else state.input.right=true; };
     const up=(e)=>{ if(dir<0) state.input.left=false; else state.input.right=false; };
     el.addEventListener("pointerdown", down); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up); el.addEventListener("pointerleave", up); }
-  bindPad(leftPad,-1); bindPad(rightPad,1);
+  bindPad(document.getElementById("leftPad"),-1);
+  bindPad(document.getElementById("rightPad"),1);
 
   let swipeActive=false, swipeStartX=0;
   canvas.addEventListener("pointerdown", e=>{ swipeActive=true; swipeStartX=e.clientX; });
   window.addEventListener("pointermove", e=>{ if(!swipeActive) return; const dx=e.clientX-swipeStartX; state.input.swipeVX=dx*3; });
   window.addEventListener("pointerup", ()=>{ swipeActive=false; state.input.swipeVX=0; });
 
-  // FIRE & SHRINK
-  firePad.addEventListener("pointerdown", e=>{ e.preventDefault(); shoot(); });
-  shrinkBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); useShrink(); });
+  document.getElementById("firePad").addEventListener("pointerdown", e=>{ e.preventDefault(); shoot(); });
+  document.getElementById("shrinkBtn").addEventListener("pointerdown", e=>{ e.preventDefault(); useShrink(); });
 
   window.addEventListener("keydown", e=>{
     if(e.key==="ArrowLeft"||e.key==="a") state.input.left=true;
@@ -396,19 +491,19 @@
     if(e.key==="ArrowRight"||e.key==="d") state.input.right=false;
   });
 
-  startBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); startGame(); });
-  pauseBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); togglePause(); });
+  document.getElementById("startBtn").addEventListener("pointerdown", e=>{ e.preventDefault(); startGame(); });
+  document.getElementById("pauseBtn").addEventListener("pointerdown", e=>{ e.preventDefault(); togglePause(); });
 
   function startGame(){
-    state.blocks.length=0; state.bullets.length=0; state.powerups.length=0;
-    state.score=0; state.time=0; state.blockTimer=0; state.powTimer=2.5;
+    state.blocks.length=0; state.bullets.length=0; state.powerups.length=0; state.coins.length=0;
+    state.score=0; state.time=0; state.blockTimer=0; state.powTimer=2.5; state.coinTimer=1.5;
     state.difficulty=1; state.over=false; state.paused=false;
     state.effects = { shrinkUntil:0, shieldUntil:0, slowUntil:0, magnetUntil:0 };
     state.player.invUntil = 0;
-    state.ammo=0; state.shrinkCharges=0; state.lives=0;
+    state.ammo=0; state.shrinkCharges=0; state.lives=0; state.coinsOnRun=0;
     ammoEl.textContent="0"; livesEl.textContent="0"; shrinkCountEl.textContent="0";
     resetPlayer();
-    overlay.style.display="none"; state.running=true; state.last=performance.now();
+    document.getElementById("overlay").style.display="none"; state.running=true; state.last=performance.now();
     requestAnimationFrame(loop);
   }
 
@@ -417,10 +512,18 @@
     overlay.querySelector(".title").textContent = "Game Over";
     const old = overlay.querySelector(".subtitle"); if (old) old.remove();
     const p = document.createElement("div"); p.className="subtitle";
-    p.innerHTML = `You scored <strong>${Math.floor(state.score)}</strong>. ${(state.score>state.best)?`<span style="color:var(--danger)">New high score!</span>`:`Try again!`}`;
+    p.innerHTML = `You scored <strong>${Math.floor(state.score)}</strong>. 🪙 +${state.coinsOnRun} collected. ${(state.score>state.best)?`<span style="color:var(--danger)">New high score!</span>`:`Try again!`}`;
     overlay.querySelector(".card").insertBefore(p, overlay.querySelector(".go"));
     state.best=Math.max(state.best, Math.floor(state.score)); localStorage.setItem("dodger_best", String(state.best)); bestEl.textContent=state.best; startBtn.textContent="Play Again";
     if (window.firebase?.saveScore) { try { await window.firebase.saveScore(state.score); } catch(_){} }
+    // persist coins
+    try{
+      const u = window.firebase?.auth?.currentUser;
+      if(u && !u.isAnonymous && state.coinsOnRun>0){
+        const total = await window.firebase.addCoins(u, state.coinsOnRun);
+        coinCount.textContent = String(total);
+      }
+    }catch(_){}
   }
 
   function togglePause(){
@@ -431,13 +534,11 @@
       ctx.font="700 20px system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif"; ctx.textAlign="center"; ctx.fillText("Paused", width/2, height*0.45); ctx.restore(); }
   }
 
-  // Helpers
   function rand(min,max){ return Math.random()*(max-min)+min; }
   function roundRect(ctx,x,y,w,h,r,fill){ ctx.beginPath(); const rr=Math.min(r,w/2,h/2);
     ctx.moveTo(x+rr,y); ctx.arcTo(x+w,y, x+w,y+h, rr); ctx.arcTo(x+w,y+h, x,y+h, rr);
     ctx.arcTo(x,y+h, x,y, rr); ctx.arcTo(x,y, x+w,y, rr); ctx.closePath(); if(fill) ctx.fill(); }
 
-  // Spawners
   function spawnBlock(){
     const size = rand(Math.max(22,width*0.03), Math.max(38,width*0.07));
     const x = rand(0, width - size);
@@ -445,7 +546,6 @@
     state.blocks.push({ x, y:-size, w:size, h:size, vy:speed });
   }
   function spawnPowerup(){
-    // weights: blaster 30%, shrink 20%, shield 15%, slow 15%, magnet 10%, life 10%
     const r = Math.random()*100;
     let type = "blaster";
     if (r<30) type="blaster";
@@ -454,14 +554,18 @@
     else if (r<80) type="slow";
     else if (r<90) type="magnet";
     else type="life";
-
     const size = Math.max(26, Math.floor(Math.min(width,height)*0.05));
     const x = rand(0, width - size);
     const vy = rand(90, 130);
     state.powerups.push({ type, x, y:-size, w:size, h:size, vy });
   }
+  function spawnCoin(){
+    const size = Math.max(16, Math.floor(Math.min(width,height)*0.035));
+    const x = rand(0, width - size);
+    const vy = rand(110, 150);
+    state.coins.push({ x, y:-size, w:size, h:size, vy, rot: Math.random()*Math.PI*2 });
+  }
 
-  // Actions
   function shoot(){
     if (state.ammo <= 0 || state.over || !state.running) return;
     state.ammo--; ammoEl.textContent = state.ammo;
@@ -471,24 +575,19 @@
   function useShrink(){
     if (state.shrinkCharges <= 0 || state.over || !state.running) return;
     state.shrinkCharges--; shrinkCountEl.textContent = state.shrinkCharges;
-    state.effects.shrinkUntil = Math.max(state.effects.shrinkUntil, state.time) + 6; // stack duration
+    state.effects.shrinkUntil = Math.max(state.effects.shrinkUntil, state.time) + 6;
   }
 
-  // Update & draw
   function update(dt){
     state.time += dt;
-    state.score += dt*10; // score grows by real time
-    scoreEl.textContent = Math.floor(state.score);
+    state.score += dt*10; scoreEl.textContent = Math.floor(state.score);
     state.difficulty = 1 + Math.min(2.2, state.time/24);
 
-    // world slow factor (affects falling/spawn, not player)
     const slowActive = state.effects.slowUntil > state.time;
     const worldDT = dt * (slowActive ? 0.55 : 1);
 
-    // shrink active?
     state.player.scale = (state.effects.shrinkUntil > state.time) ? 0.6 : 1;
 
-    // player move (not slowed)
     const p = state.player, base = p.speed * state.difficulty * 0.95;
     let targetVX = 0;
     if(state.input.left) targetVX -= base;
@@ -500,7 +599,6 @@
     if (p.x < 0) { p.x = 0; p.vx = Math.max(0, p.vx); }
     if (p.x + pw > width) { p.x = width - pw; p.vx = Math.min(0, p.vx); }
 
-    // spawn blocks
     state.blockTimer -= worldDT;
     const interval = Math.max(0.22, 0.9 - state.time*0.03);
     if (state.blockTimer <= 0) {
@@ -509,21 +607,40 @@
       state.blockTimer = interval;
     }
 
-    // spawn powerups
     state.powTimer -= worldDT;
-    if (state.powTimer <= 0) {
-      spawnPowerup();
-      state.powTimer = rand(8, 13);
-    }
+    if (state.powTimer <= 0) { spawnPowerup(); state.powTimer = rand(8, 13); }
 
-    // move blocks
+    // coin spawner (independent)
+    state.coinTimer -= worldDT;
+    if (state.coinTimer <= 0) { spawnCoin(); state.coinTimer = rand(4, 7); }
+
     for (let i=state.blocks.length-1; i>=0; i--) {
       const b = state.blocks[i]; b.y += b.vy * worldDT;
       if (b.y - b.h > height + 8) { state.blocks.splice(i,1); continue; }
     }
 
-    // move powerups (+magnet)
+    // coins move + collect (magnet affects coins too)
     const magnet = state.effects.magnetUntil > state.time;
+    for (let i=state.coins.length-1; i>=0; i--) {
+      const c = state.coins[i];
+      c.rot += worldDT*3;
+      if (magnet) {
+        const cx = (p.x + pw/2) - (c.x + c.w/2);
+        const cy = (p.y + ph/2) - (c.y + c.h/2);
+        const dist = Math.max(1, Math.hypot(cx, cy));
+        c.x += (cx/dist) * 260 * worldDT;
+        c.y += (cy/dist) * 260 * worldDT;
+      } else {
+        c.y += c.vy * worldDT;
+      }
+      if (c.y - c.h > height + 8) { state.coins.splice(i,1); continue; }
+      if (c.x < p.x + pw && c.x + c.w > p.x && c.y < p.y + ph && c.y + c.h > p.y) {
+        state.coins.splice(i,1);
+        state.coinsOnRun += 1;
+      }
+    }
+
+    // powerups move + collect
     for (let i=state.powerups.length-1; i>=0; i--) {
       const u = state.powerups[i];
       if (magnet) {
@@ -532,12 +649,8 @@
         const dist = Math.max(1, Math.hypot(cx, cy));
         u.x += (cx/dist) * 220 * worldDT;
         u.y += (cy/dist) * 220 * worldDT;
-      } else {
-        u.y += u.vy * worldDT;
-      }
-
+      } else { u.y += u.vy * worldDT; }
       if (u.y - u.h > height + 8) { state.powerups.splice(i,1); continue; }
-      // collect
       if (u.x < p.x + pw && u.x + u.w > p.x && u.y < p.y + ph && u.y + u.h > p.y) {
         if (u.type === "blaster") { state.ammo += 6; ammoEl.textContent = state.ammo; }
         else if (u.type === "shrink") { state.shrinkCharges += 1; shrinkCountEl.textContent = state.shrinkCharges; }
@@ -549,9 +662,9 @@
       }
     }
 
-    // move bullets + bullet vs block
+    // bullets
     for (let i=state.bullets.length-1; i>=0; i--) {
-      const bullet = state.bullets[i]; bullet.y += bullet.vy * dt; // bullets unaffected by slow
+      const bullet = state.bullets[i]; bullet.y += bullet.vy * dt;
       if (bullet.y + bullet.h < -10) { state.bullets.splice(i,1); continue; }
       for (let j=state.blocks.length-1; j>=0; j--) {
         const b = state.blocks[j];
@@ -564,25 +677,14 @@
       }
     }
 
-    // block vs player (shield/lives/invuln)
+    // collisions with blocks
     for (let i=state.blocks.length-1; i>=0; i--) {
       const b = state.blocks[i];
       if (b.x < p.x + pw && b.x + b.w > p.x && b.y < p.y + ph && b.y + b.h > p.y) {
         if (state.player.invUntil > state.time) { state.blocks.splice(i,1); continue; }
-
         const shieldActive = state.effects.shieldUntil > state.time;
-        if (shieldActive) {
-          state.effects.shieldUntil = Math.max(state.time, state.effects.shieldUntil - 0.5);
-          state.player.invUntil = state.time + 0.5;
-          state.blocks.splice(i,1);
-          continue;
-        }
-        if (state.lives > 0) {
-          state.lives--; livesEl.textContent = state.lives;
-          state.player.invUntil = state.time + 1.2;
-          state.blocks.splice(i,1);
-          continue;
-        }
+        if (shieldActive) { state.effects.shieldUntil = Math.max(state.time, state.effects.shieldUntil - 0.5); state.player.invUntil = state.time + 0.5; state.blocks.splice(i,1); continue; }
+        if (state.lives > 0) { state.lives--; livesEl.textContent = state.lives; state.player.invUntil = state.time + 1.2; state.blocks.splice(i,1); continue; }
         gameOver(); return;
       }
     }
@@ -596,6 +698,15 @@
     ctx.beginPath(); for(let x=(width%grid); x<width; x+=grid){ ctx.moveTo(x,0); ctx.lineTo(x,height); }
     for(let y=(height%grid); y<height; y+=grid){ ctx.moveTo(0,y); ctx.lineTo(width,y); } ctx.stroke(); ctx.globalAlpha = 1;
 
+    // player skin color (default blue)
+    let playerColor = "#58a6ff";
+    try{
+      const u = window.firebase?.auth?.currentUser;
+      const cached = localStorage.getItem("player_skin");
+      if (cached) { playerColor = cached; }
+      // best effort: read stored color from DOM store if we had just bought; otherwise keep cached/default
+    }catch(_){}
+
     const p = state.player, pw = p.w*p.scale, ph = p.h*p.scale;
 
     if (state.effects.shieldUntil > state.time) {
@@ -607,7 +718,7 @@
     }
     if (state.player.invUntil > state.time) { ctx.globalAlpha = 0.6 + 0.4*Math.sin(state.time*30); }
 
-    ctx.fillStyle = "#58a6ff"; roundRect(ctx, p.x, p.y, pw, ph, Math.min(10, pw*0.25), true);
+    ctx.fillStyle = playerColor; roundRect(ctx, p.x, p.y, pw, ph, Math.min(10, pw*0.25), true);
     ctx.globalAlpha = 1;
 
     for (const b of state.blocks) {
@@ -617,6 +728,19 @@
       roundRect(ctx, b.x+b.w*0.1, b.y+b.h*0.08, b.w*0.8, b.h*0.18, 8, true); ctx.globalAlpha = 1;
     }
 
+    // coins (yellow with ring)
+    for (const c of state.coins) {
+      const cx = c.x + c.w/2, cy = c.y + c.h/2, r = c.w/2;
+      ctx.save();
+      ctx.translate(cx, cy); ctx.rotate(Math.sin(c.rot)*0.15);
+      ctx.fillStyle = "#ffd54a";
+      ctx.beginPath(); ctx.arc(0,0, r, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = "#e7b600"; ctx.lineWidth = 3; ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255,0.3)"; ctx.beginPath(); ctx.arc(-r*0.2,-r*0.2, r*0.45, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+
+    // power-ups
     for (const u of state.powerups) {
       let color="#ffd166", glyph="🔫";
       if (u.type==="shrink"){ color="#34d399"; glyph="✂"; }
@@ -642,8 +766,24 @@
     requestAnimationFrame(loop);
   }
 
-  draw(); // first paint
+  draw();
 })();
+</script>
+
+<!-- Cache player skin color after purchase (no extra reads needed) -->
+<script>
+  // Whenever store buys, update local color cache (best-effort).
+  (function(){
+    const storeList = document.getElementById("storeList");
+    if(!storeList) return;
+    storeList.addEventListener("pointerdown", (e)=>{
+      const btn = e.target.closest("button[data-skin]");
+      if(!btn) return;
+      const id = btn.getAttribute("data-skin");
+      const colors = { blue:"#58a6ff", lime:"#4ade80", rose:"#f472b6" };
+      if (colors[id]) localStorage.setItem("player_skin", colors[id]);
+    });
+  })();
 </script>
 </body>
 </html>

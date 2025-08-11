@@ -9,7 +9,6 @@
 <style>
   :root { --bg:#0c0f14; --fg:#e9efff; --accent:#58a6ff; --danger:#ff6b6b; --muted:#8a94a6; --good:#4ade80; --gold:#ffd166; }
 
-  /* -------- Base -------- */
   * { box-sizing:border-box; }
   html, body { margin:0; height:100%; background:var(--bg); color:var(--fg);
     font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
@@ -18,14 +17,12 @@
   canvas { display:block; width:100%; height:100%; }
   .safe { padding-top: env(safe-area-inset-top); }
 
-  /* -------- HUD: compact, two rows, never wraps -------- */
+  /* ── HUD: compact, two rows, never wraps ───────────────────────────── */
   header {
     position:absolute; top:0; left:0; right:0; z-index:8; display:flex; flex-direction:column;
     padding:8px 10px; gap:6px; pointer-events:none;
   }
-
-  /* global scale knob (tweak only this if you want smaller/bigger HUD) */
-  #hud { --s:0.82; } /* ~82% of previous size */
+  #hud { --s:0.82; } /* global HUD scale knob */
 
   .topbar, .toolbar {
     display:flex; align-items:center; justify-content:space-between; gap:calc(8px * var(--s));
@@ -34,25 +31,23 @@
   .left, .right { display:flex; gap:calc(8px * var(--s)); align-items:center; min-width:0; }
 
   .hud, .btn, #userChip, #coinChip {
-    pointer-events:auto;
-    background:rgba(255,255,255,0.06);
-    border:1px solid rgba(255,255,255,0.12);
-    border-radius:calc(12px * var(--s));
-    padding:calc(6px * var(--s)) calc(10px * var(--s));
-    white-space:nowrap;
-    font-size:calc(14px * var(--s));
-    line-height:1;
+    pointer-events:auto; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12);
+    border-radius:calc(12px * var(--s)); padding:calc(6px * var(--s)) calc(10px * var(--s));
+    white-space:nowrap; font-size:calc(14px * var(--s)); line-height:1;
   }
   .hud { display:flex; gap:calc(8px * var(--s)); align-items:center; }
   .hud strong { font-weight:800; }
   .btn { font-weight:700; }
   .btn:active { transform: translateY(1px); }
-  #userChip { background:rgba(88,166,255,0.18); border-color:rgba(88,166,255,0.4); max-width:52vw; overflow:hidden; text-overflow:ellipsis; }
+  /* put the name on row 1, right side, give it more room */
+  #userChip { background:rgba(88,166,255,0.18); border-color:rgba(88,166,255,0.4); max-width:66vw; overflow:hidden; text-overflow:ellipsis; }
   .ammo { color:var(--good); font-variant-numeric:tabular-nums; }
 
-  /* coin indicator chip */
-  #coinChip { display:flex; align-items:center; gap:calc(6px * var(--s));
-    background:rgba(255,213,95,0.12); border-color:rgba(255,213,95,0.35); }
+  /* coin indicator chip (row 2 left) */
+  #coinChip {
+    display:flex; align-items:center; gap:calc(6px * var(--s));
+    background:rgba(255,213,95,0.12); border-color:rgba(255,213,95,0.35);
+  }
   #coinChip svg { width:calc(18px * var(--s)); height:calc(18px * var(--s)); flex:0 0 auto; }
 
   /* Controls */
@@ -98,7 +93,7 @@
 <canvas id="game" aria-label="Dodger game area"></canvas>
 
 <header class="safe" id="hud">
-  <!-- Row 1: HUD ONLY (never wraps) -->
+  <!-- Row 1: HUD + Signed in (right) -->
   <div class="topbar">
     <div class="left">
       <div class="hud"><strong>Score:</strong><span id="score">0</span></div>
@@ -106,15 +101,15 @@
       <div class="hud"><strong>Ammo:</strong><span id="ammo" class="ammo">0</span></div>
       <div class="hud"><strong>Lives:</strong><span id="lives" class="ammo">0</span></div>
     </div>
-    <div class="right"><!-- empty on purpose --></div>
+    <div class="right">
+      <div id="userChip">Connecting…</div>
+    </div>
   </div>
 
-  <!-- Row 2: account + buttons (never wraps) -->
+  <!-- Row 2: coins (left) + buttons (right) -->
   <div class="toolbar">
     <div class="left">
-      <div id="userChip">Connecting…</div>
       <div id="coinChip" title="Coins">
-        <!-- coin icon kept the same, just scaled by CSS -->
         <svg viewBox="0 0 64 64" aria-hidden="true">
           <defs>
             <radialGradient id="cg" cx="40%" cy="35%" r="65%">
@@ -336,7 +331,7 @@
   });
 </script>
 
-<!-- ===== Game code (coins, power-ups, etc.) ===== -->
+<!-- ===== Game code ===== -->
 <script>
 (function () {
   "use strict";
@@ -527,7 +522,8 @@
     state.powerups.push({ type, x, y:-size, w:size, h:size, vy });
   }
   function spawnCoin(){
-    const size = Math.max(18, Math.floor(Math.min(width,height)*0.04));
+    // keep coin *physical* size consistent: tie to player size (UI scaling won't affect it)
+    const size = Math.floor(Math.max(18, state.player.w * 0.70)); // ~70% of the player width
     const x = rand(0, width - size);
     const vy = rand(80, 120);
     const t0 = state.time;
@@ -625,7 +621,7 @@
       }
     }
 
-    // bullets + collisions
+    // bullets + block collisions
     for (let i=state.bullets.length-1; i>=0; i--) {
       const bullet = state.bullets[i]; bullet.y += bullet.vy * dt;
       if (bullet.y + bullet.h < -10) { state.bullets.splice(i,1); continue; }
@@ -720,7 +716,7 @@
     requestAnimationFrame(loop);
   }
 
-  draw(); // first paint
+  draw();
 })();
 </script>
 </body>

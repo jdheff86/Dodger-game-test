@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum=1, user-scalable=no" />
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Dodger — Leaderboard + Accounts + Power-Ups</title>
 <style>
-  :root { --bg:#0c0f14; --fg:#e9efff; --accent:#58a6ff; --danger:#ff6b6b; --muted:#8a94a6; --good:#4ade80; --gold:#ffd166; }
+  :root { --bg:#0c0f14; --fg:#e9efff; --accent:#58a6ff; --danger:#ff6b6b; --muted:#8a94a6; --good:#4ade80; }
 
   * { box-sizing:border-box; }
   html, body { margin:0; height:100%; background:var(--bg); color:var(--fg);
@@ -17,76 +17,47 @@
   canvas { display:block; width:100%; height:100%; }
   .safe { padding-top: env(safe-area-inset-top); }
 
-  /* ── HUD: compact, two rows, never wraps ───────────────────────────── */
-  header {
-    position:absolute; top:0; left:0; right:0; z-index:8; display:flex; flex-direction:column;
-    padding:8px 10px; gap:6px; pointer-events:none;
-  }
-  #hud { --s:0.82; } /* global HUD scale knob */
+  /* HUD: compact two rows, fixed-height, scaleable */
+  header { position:absolute; top:0; left:0; right:0; z-index:8; display:flex; flex-direction:column; padding:8px 10px; gap:6px; pointer-events:none; }
+  #hud { --s:0.82; }
+  .topbar,.toolbar{ display:flex; align-items:center; justify-content:space-between; gap:calc(8px*var(--s)); height:calc(44px*var(--s)); flex-wrap:nowrap; }
+  .left,.right{ display:flex; gap:calc(8px*var(--s)); align-items:center; min-width:0; }
+  .hud,.btn,#userChip,#coinChip{ pointer-events:auto; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
+    border-radius:calc(12px*var(--s)); padding:calc(6px*var(--s)) calc(10px*var(--s)); white-space:nowrap; font-size:calc(14px*var(--s)); line-height:1; }
+  .hud{ display:flex; gap:calc(8px*var(--s)); align-items:center; }
+  .hud strong{ font-weight:800; }
+  .btn{ font-weight:700; }
+  .btn:active{ transform:translateY(1px); }
+  #userChip{ background:rgba(88,166,255,.18); border-color:rgba(88,166,255,.4); max-width:66vw; overflow:hidden; text-overflow:ellipsis; }
+  .ammo{ color:var(--good); font-variant-numeric:tabular-nums; }
+  #coinChip{ display:flex; align-items:center; gap:calc(6px*var(--s)); background:rgba(255,213,95,.12); border-color:rgba(255,213,95,.35); }
+  #coinChip svg{ width:calc(18px*var(--s)); height:calc(18px*var(--s)); flex:0 0 auto; }
 
-  .topbar, .toolbar {
-    display:flex; align-items:center; justify-content:space-between; gap:calc(8px * var(--s));
-    height:calc(44px * var(--s)); flex-wrap:nowrap; min-width:0;
-  }
-  .left, .right { display:flex; gap:calc(8px * var(--s)); align-items:center; min-width:0; }
+  /* Controls / overlay / modals (unchanged) */
+  .controls{ position:absolute; left:0; right:0; bottom:0; z-index:6; display:flex; justify-content:space-between; gap:12px; padding:14px; pointer-events:none; }
+  .pad{ flex:1; min-height:92px; border-radius:16px; pointer-events:auto; background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.03)); border:1px solid rgba(255,255,255,.1); display:flex; align-items:center; justify-content:center; }
+  .pad span{ font-size:28px; filter:drop-shadow(0 2px 0 rgba(0,0,0,.35)); }
+  .pad.fire{ flex:0.9; }
+  #abilities{ position:absolute; left:0; right:0; bottom:110px; display:flex; justify-content:center; z-index:6; pointer-events:none; }
+  #shrinkBtn{ pointer-events:auto; display:flex; align-items:center; gap:8px; }
+  #shrinkCount{ min-width:1.6em; text-align:center; }
 
-  .hud, .btn, #userChip, #coinChip {
-    pointer-events:auto; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12);
-    border-radius:calc(12px * var(--s)); padding:calc(6px * var(--s)) calc(10px * var(--s));
-    white-space:nowrap; font-size:calc(14px * var(--s)); line-height:1;
-  }
-  .hud { display:flex; gap:calc(8px * var(--s)); align-items:center; }
-  .hud strong { font-weight:800; }
-  .btn { font-weight:700; }
-  .btn:active { transform: translateY(1px); }
-  /* put the name on row 1, right side, give it more room */
-  #userChip { background:rgba(88,166,255,0.18); border-color:rgba(88,166,255,0.4); max-width:66vw; overflow:hidden; text-overflow:ellipsis; }
-  .ammo { color:var(--good); font-variant-numeric:tabular-nums; }
-
-  /* coin indicator chip (row 2 left) */
-  #coinChip {
-    display:flex; align-items:center; gap:calc(6px * var(--s));
-    background:rgba(255,213,95,0.12); border-color:rgba(255,213,95,0.35);
-  }
-  #coinChip svg { width:calc(18px * var(--s)); height:calc(18px * var(--s)); flex:0 0 auto; }
-
-  /* Controls */
-  .controls {
-    position:absolute; left:0; right:0; bottom:0; z-index:6; display:flex; justify-content:space-between; gap:12px; padding:14px; pointer-events:none;
-  }
-  .pad {
-    flex:1; min-height:92px; border-radius:16px; pointer-events:auto;
-    background:linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03));
-    border:1px solid rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center;
-  }
-  .pad span { font-size:28px; filter: drop-shadow(0 2px 0 rgba(0,0,0,0.35)); }
-  .pad.fire { flex:0.9; }
-
-  /* Ability bar (shrink activator) */
-  #abilities { position:absolute; left:0; right:0; bottom:110px; display:flex; justify-content:center; z-index:6; pointer-events:none; }
-  #shrinkBtn { pointer-events:auto; display:flex; align-items:center; gap:8px; }
-  #shrinkCount { min-width:1.6em; text-align:center; }
-
-  /* Overlay + modals */
-  .overlay {
-    position:absolute; inset:0; z-index:7; display:flex; align-items:center; justify-content:center;
-    background: radial-gradient(1200px 800px at 50% 40%, rgba(88,166,255,0.12), rgba(12,15,20,0.92) 60%); text-align:center; padding:24px;
-  }
-  .card { max-width:560px; width:92%; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.14); border-radius:18px; padding:18px; backdrop-filter:blur(10px); }
-  .title { font-size:26px; font-weight:800; margin:4px 0 10px; }
-  .subtitle { color:var(--muted); margin-bottom:14px; }
-  .go { margin-top:12px; width:100%; padding:12px 14px; font-weight:800; font-size:18px; border-radius:14px; border:none; color:#0b1220; background:var(--accent); }
-  .muted { color:var(--muted); font-size:13px; margin-top:8px; }
-
-  .modal { position:absolute; inset:0; z-index:12; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.55); padding:18px; }
-  .panel { width:min(520px,92%); background:#121826; border:1px solid rgba(255,255,255,0.12); border-radius:16px; padding:16px; position:relative; }
-  .panel h2 { margin:4px 0 12px; font-size:20px; }
-  .grid { display:grid; gap:10px; }
-  .grid input { width:100%; padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,0.15); background:#0f141f; color:var(--fg); }
-  .actions { display:flex; gap:10px; margin-top:8px; flex-wrap:wrap; }
-  .btn2 { flex:1; padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.06); color:var(--fg); font-weight:700; }
-  .btn2.primary { background:var(--accent); color:#0b1220; border-color:transparent; }
-  .x { position:absolute; top:10px; right:12px; background:transparent; border:none; color:var(--muted); font-size:22px; }
+  .overlay{ position:absolute; inset:0; z-index:7; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(1200px 800px at 50% 40%, rgba(88,166,255,.12), rgba(12,15,20,.92) 60%); text-align:center; padding:24px; }
+  .card{ max-width:560px; width:92%; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); border-radius:18px; padding:18px; backdrop-filter:blur(10px); }
+  .title{ font-size:26px; font-weight:800; margin:4px 0 10px; }
+  .subtitle{ color:var(--muted); margin-bottom:14px; }
+  .go{ margin-top:12px; width:100%; padding:12px 14px; font-weight:800; font-size:18px; border-radius:14px; border:none; color:#0b1220; background:var(--accent); }
+  .muted{ color:var(--muted); font-size:13px; margin-top:8px; }
+  .modal{ position:absolute; inset:0; z-index:12; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); padding:18px; }
+  .panel{ width:min(520px,92%); background:#121826; border:1px solid rgba(255,255,255,.12); border-radius:16px; padding:16px; position:relative; }
+  .panel h2{ margin:4px 0 12px; font-size:20px; }
+  .grid{ display:grid; gap:10px; }
+  .grid input{ width:100%; padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,.15); background:#0f141f; color:var(--fg); }
+  .actions{ display:flex; gap:10px; margin-top:8px; flex-wrap:wrap; }
+  .btn2{ flex:1; padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.06); color:var(--fg); font-weight:700; }
+  .btn2.primary{ background:var(--accent); color:#0b1220; border-color:transparent; }
+  .x{ position:absolute; top:10px; right:12px; background:transparent; border:none; color:var(--muted); font-size:22px; }
 </style>
 </head>
 <body class="safe">
@@ -102,22 +73,18 @@
       <div class="hud"><strong>Lives:</strong><span id="lives" class="ammo">0</span></div>
     </div>
     <div class="right">
-      <div id="userChip">Connecting…</div>
+      <div id="userChip">Not signed in</div>
     </div>
   </div>
 
-  <!-- Row 2: coins (left) + buttons (right) -->
+  <!-- Row 2: coins + buttons -->
   <div class="toolbar">
     <div class="left">
       <div id="coinChip" title="Coins">
         <svg viewBox="0 0 64 64" aria-hidden="true">
-          <defs>
-            <radialGradient id="cg" cx="40%" cy="35%" r="65%">
-              <stop offset="0%" stop-color="#ffe38a"/>
-              <stop offset="55%" stop-color="#f5c240"/>
-              <stop offset="100%" stop-color="#c68a12"/>
-            </radialGradient>
-          </defs>
+          <defs><radialGradient id="cg" cx="40%" cy="35%" r="65%">
+            <stop offset="0%" stop-color="#ffe38a"/><stop offset="55%" stop-color="#f5c240"/><stop offset="100%" stop-color="#c68a12"/>
+          </radialGradient></defs>
           <circle cx="32" cy="32" r="22" fill="url(#cg)"/>
           <circle cx="32" cy="32" r="22" fill="none" stroke="#000" stroke-opacity=".25" stroke-width="2"/>
           <g fill="#000" fill-opacity=".28">
@@ -141,9 +108,7 @@
 </header>
 
 <!-- Ability bar -->
-<div id="abilities">
-  <button id="shrinkBtn" class="btn">✂ Shrink <span id="shrinkCount" class="ammo">0</span></button>
-</div>
+<div id="abilities"><button id="shrinkBtn" class="btn">✂ Shrink <span id="shrinkCount" class="ammo">0</span></button></div>
 
 <!-- Controls -->
 <div class="controls">
@@ -156,7 +121,7 @@
 <div class="overlay" id="overlay">
   <div class="card">
     <div class="title">DODGER</div>
-    <div class="subtitle">Avoid blocks. Power-ups: 🔫 Blaster, ✂ Shrink, 🛡 Shield, 🐌 Slow, 🧲 Magnet, ❤️ Life.</div>
+    <div class="subtitle" id="startSub">Avoid blocks. Power-ups: 🔫 Blaster, ✂ Shrink, 🛡 Shield, 🐌 Slow, 🧲 Magnet, ❤️ Life.</div>
     <button class="go" id="startBtn">Start</button>
     <div class="muted">Tip: Add to Home Screen on iPhone for full-screen play.</div>
   </div>
@@ -211,13 +176,13 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
   import {
-    getAuth, signInAnonymously, onAuthStateChanged,
+    getAuth, onAuthStateChanged,
     signInWithEmailAndPassword, createUserWithEmailAndPassword,
     updateProfile, signOut
   } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
   import {
     getFirestore, collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp,
-    doc, setDoc, getDoc, updateDoc, increment
+    doc, setDoc, getDoc, updateDoc, increment, onSnapshot
   } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -234,13 +199,27 @@
   const auth = getAuth(app);
   const db   = getFirestore(app);
 
-  // guest so game works before sign in
-  signInAnonymously(auth).catch(()=>{});
+  // ── Helpers exposed to game code
+  let walletUnsub = null;
 
-  // expose helpers
   window.firebase = {
     auth, db,
     onUser(cb){ return onAuthStateChanged(auth, cb); },
+    async ensureWallet(uid){
+      const ref = doc(db, "wallets", uid);
+      const s = await getDoc(ref);
+      if (!s.exists()) await setDoc(ref, { coins:0 });
+      return ref;
+    },
+    async watchWallet(uid, onCoins){
+      if (walletUnsub) { walletUnsub(); walletUnsub = null; }
+      if (!uid) { onCoins?.(0); return; }
+      const ref = await window.firebase.ensureWallet(uid);
+      walletUnsub = onSnapshot(ref, (snap)=>{
+        const coins = Number(snap.data()?.coins || 0);
+        onCoins?.(coins);
+      });
+    },
     async setDisplayName(name){
       if (!auth.currentUser) return;
       const clean = String(name||"Player").trim().slice(0,24);
@@ -259,27 +238,15 @@
         return { ok:true };
       }catch(e){ return { ok:false, error:e.message }; }
     },
-    async loadTop(n=20){
-      const qy = query(collection(db,"scores"), orderBy("score","desc"), orderBy("ts","asc"), limit(n));
-      const snap = await getDocs(qy);
-      return snap.docs.map(d => ({ id:d.id, ...d.data() }));
-    },
-    async getOrCreateWallet(){
-      const u = auth.currentUser; if(!u) return 0;
-      const ref = doc(db, "wallets", u.uid);
-      const s = await getDoc(ref);
-      if (!s.exists()) { await setDoc(ref, { coins:0 }); return 0; }
-      return Number(s.data()?.coins||0);
-    },
     async addCoins(n){
-      const u = auth.currentUser; if(!u) return;
-      const ref = doc(db, "wallets", u.uid);
-      await setDoc(ref, { coins:0 }, { merge:true });
-      await updateDoc(ref, { coins: increment(n|0) });
+      const u = auth.currentUser;
+      if (!u) throw new Error("Not signed in");
+      const ref = await window.firebase.ensureWallet(u.uid);
+      await updateDoc(ref, { coins: increment(n|0) }); // await so it actually persists
     }
   };
 
-  // auth UI wiring
+  // ── Auth UI wiring + wallet sync
   const userChip = document.getElementById("userChip");
   const coinCountEl = document.getElementById("coinCount");
   const authBtn = document.getElementById("authBtn");
@@ -291,12 +258,23 @@
   const btnIn    = document.getElementById("authSignin");
   const btnUp    = document.getElementById("authSignup");
   const btnOut   = document.getElementById("authSignout");
+  const startBtn = document.getElementById("startBtn");
+  const startSub = document.getElementById("startSub");
 
   onAuthStateChanged(auth, async (u)=>{
-    if (!u){ userChip.textContent = "Guest (not saved)"; coinCountEl.textContent = "0"; return; }
+    if (!u){
+      userChip.textContent = "Not signed in";
+      coinCountEl.textContent = "0";
+      await window.firebase.watchWallet(null, null);
+      startSub.textContent = "Sign in to play and save coins.";
+      startBtn.textContent = "Sign in";
+      return;
+    }
     userChip.textContent = u.displayName ? `Signed in: ${u.displayName}` :
                            u.email ? `Signed in: ${u.email}` : "Signed in";
-    try { coinCountEl.textContent = String(await window.firebase.getOrCreateWallet()); } catch {}
+    await window.firebase.watchWallet(u.uid, (coins)=>{ coinCountEl.textContent = String(coins); });
+    startSub.textContent = "Avoid blocks. Power-ups: 🔫 Blaster, ✂ Shrink, 🛡 Shield, 🐌 Slow, 🧲 Magnet, ❤️ Life.";
+    startBtn.textContent = "Start";
   });
 
   function openModal(m){ m.style.display="flex"; }
@@ -416,12 +394,10 @@
     blocks:[], blockTimer:0, difficulty:1,
     input:{ left:false, right:false, swipeVX:0 },
     bullets:[],
-    ammo:0,
-    lives:0,
-    shrinkCharges:0,
+    ammo:0, lives:0, shrinkCharges:0,
     powerups:[], powTimer:2.5,
     effects:{ shrinkUntil:0, shieldUntil:0, slowUntil:0, magnetUntil:0 },
-    coins: []
+    coins:[]
   };
   bestEl.textContent = state.best; ammoEl.textContent = state.ammo; livesEl.textContent = state.lives; shrinkCountEl.textContent = state.shrinkCharges;
 
@@ -432,7 +408,7 @@
   }
   resetPlayer();
 
-  // Input (pads + swipe)
+  // Input
   function bindPad(el,dir){ const down=(e)=>{ e.preventDefault(); if(dir<0) state.input.left=true; else state.input.right=true; };
     const up=(e)=>{ if(dir<0) state.input.left=false; else state.input.right=false; };
     el.addEventListener("pointerdown", down); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up); el.addEventListener("pointerleave", up); }
@@ -443,7 +419,6 @@
   window.addEventListener("pointermove", e=>{ if(!swipeActive) return; const dx=e.clientX-swipeStartX; state.input.swipeVX=dx*3; });
   window.addEventListener("pointerup", ()=>{ swipeActive=false; state.input.swipeVX=0; });
 
-  // FIRE & SHRINK
   firePad.addEventListener("pointerdown", e=>{ e.preventDefault(); shoot(); });
   shrinkBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); useShrink(); });
 
@@ -458,7 +433,14 @@
     if(e.key==="ArrowRight"||e.key==="d") state.input.right=false;
   });
 
-  startBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); startGame(); });
+  startBtn.addEventListener("pointerdown", e=>{
+    e.preventDefault();
+    if (!window.firebase.auth.currentUser){
+      document.getElementById("authModal").style.display = "flex";
+      return;
+    }
+    startGame();
+  });
   pauseBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); togglePause(); });
 
   function startGame(){
@@ -515,15 +497,13 @@
     else if (r<80) type="slow";
     else if (r<90) type="magnet";
     else type="life";
-
     const size = Math.max(26, Math.floor(Math.min(width,height)*0.05));
     const x = rand(0, width - size);
     const vy = rand(90, 130);
     state.powerups.push({ type, x, y:-size, w:size, h:size, vy });
   }
   function spawnCoin(){
-    // keep coin *physical* size consistent: tie to player size (UI scaling won't affect it)
-    const size = Math.floor(Math.max(18, state.player.w * 0.70)); // ~70% of the player width
+    const size = Math.floor(Math.max(18, state.player.w * 0.70)); // stable physical size
     const x = rand(0, width - size);
     const vy = rand(80, 120);
     const t0 = state.time;
@@ -567,21 +547,13 @@
 
     state.blockTimer -= worldDT;
     const interval = Math.max(0.22, 0.9 - state.time*0.03);
-    if (state.blockTimer <= 0) {
-      spawnBlock();
-      if (state.time > 12 && Math.random() < 0.35) spawnBlock();
-      state.blockTimer = interval;
-    }
+    if (state.blockTimer <= 0) { spawnBlock(); if (state.time > 12 && Math.random() < 0.35) spawnBlock(); state.blockTimer = interval; }
 
     state.powTimer -= worldDT;
-    if (state.powTimer <= 0) {
-      if (Math.random() < 0.35) spawnCoin(); else spawnPowerup();
-      state.powTimer = rand(8, 13);
-    }
+    if (state.powTimer <= 0) { if (Math.random() < 0.35) spawnCoin(); else spawnPowerup(); state.powTimer = rand(8, 13); }
 
     for (let i=state.blocks.length-1; i>=0; i--) {
-      const b = state.blocks[i]; b.y += b.vy * worldDT;
-      if (b.y - b.h > height + 8) { state.blocks.splice(i,1); continue; }
+      const b = state.blocks[i]; b.y += b.vy * worldDT; if (b.y - b.h > height + 8) { state.blocks.splice(i,1); }
     }
 
     const magnet = state.effects.magnetUntil > state.time;
@@ -591,11 +563,8 @@
         const cx = (p.x + pw/2) - (u.x + u.w/2);
         const cy = (p.y + ph/2) - (u.y + u.h/2);
         const dist = Math.max(1, Math.hypot(cx, cy));
-        u.x += (cx/dist) * 220 * worldDT;
-        u.y += (cy/dist) * 220 * worldDT;
-      } else {
-        u.y += u.vy * worldDT;
-      }
+        u.x += (cx/dist) * 220 * worldDT; u.y += (cy/dist) * 220 * worldDT;
+      } else { u.y += u.vy * worldDT; }
       if (u.y - u.h > height + 8) { state.powerups.splice(i,1); continue; }
       if (u.x < p.x + pw && u.x + u.w > p.x && u.y < p.y + ph && u.y + u.h > p.y) {
         if (u.type === "blaster") { state.ammo += 6; ammoEl.textContent = state.ammo; }
@@ -610,28 +579,24 @@
 
     // coins
     for (let i=state.coins.length-1; i>=0; i--) {
-      const c = state.coins[i];
-      c.y += c.vy * worldDT;
+      const c = state.coins[i]; c.y += c.vy * worldDT;
       if (c.y - c.h > height + 8) { state.coins.splice(i,1); continue; }
       if (c.x < p.x + pw && c.x + c.w > p.x && c.y < p.y + ph && c.y + c.h > p.y) {
         state.coins.splice(i,1);
-        const current = Number(coinCountEl.textContent||0) + 1;
-        coinCountEl.textContent = String(current);
-        window.firebase?.addCoins?.(1).catch(()=>{});
+        // optimistic UI update; DB is truth via onSnapshot
+        coinCountEl.textContent = String((Number(coinCountEl.textContent)||0) + 1);
+        window.firebase.addCoins(1).catch(()=>{/* ignore; snapshot will correct if failed */});
       }
     }
 
-    // bullets + block collisions
+    // bullets
     for (let i=state.bullets.length-1; i>=0; i--) {
       const bullet = state.bullets[i]; bullet.y += bullet.vy * dt;
       if (bullet.y + bullet.h < -10) { state.bullets.splice(i,1); continue; }
       for (let j=state.blocks.length-1; j>=0; j--) {
         const b = state.blocks[j];
         if (bullet.x < b.x + b.w && bullet.x + bullet.w > b.x && bullet.y < b.y + b.h && bullet.y + bullet.h > b.y) {
-          state.blocks.splice(j,1);
-          state.bullets.splice(i,1);
-          state.score += 5;
-          break;
+          state.blocks.splice(j,1); state.bullets.splice(i,1); state.score += 5; break;
         }
       }
     }
@@ -639,21 +604,12 @@
     // block vs player
     for (let i=state.blocks.length-1; i>=0; i--) {
       const b = state.blocks[i];
-      if (b.x < p.x + pw && b.x + b.w > p.x && b.y < p.y + ph && b.y + b.h > p.y) {
+      const p2 = state.player, pw2 = p2.w*p2.scale, ph2 = p2.h*p2.scale;
+      if (b.x < p2.x + pw2 && b.x + b.w > p2.x && b.y < p2.y + ph2 && b.y + b.h > p2.y) {
         if (state.player.invUntil > state.time) { state.blocks.splice(i,1); continue; }
         const shieldActive = state.effects.shieldUntil > state.time;
-        if (shieldActive) {
-          state.effects.shieldUntil = Math.max(state.time, state.effects.shieldUntil - 0.5);
-          state.player.invUntil = state.time + 0.5;
-          state.blocks.splice(i,1);
-          continue;
-        }
-        if (state.lives > 0) {
-          state.lives--; livesEl.textContent = state.lives;
-          state.player.invUntil = state.time + 1.2;
-          state.blocks.splice(i,1);
-          continue;
-        }
+        if (shieldActive) { state.effects.shieldUntil = Math.max(state.time, state.effects.shieldUntil - 0.5); state.player.invUntil = state.time + 0.5; state.blocks.splice(i,1); continue; }
+        if (state.lives > 0) { state.lives--; livesEl.textContent = state.lives; state.player.invUntil = state.time + 1.2; state.blocks.splice(i,1); continue; }
         gameOver(); return;
       }
     }
@@ -670,23 +626,16 @@
     const p = state.player, pw = p.w*p.scale, ph = p.h*p.scale;
 
     if (state.effects.shieldUntil > state.time) {
-      ctx.save();
-      ctx.globalAlpha = 0.25 + 0.15*Math.sin(state.time*8);
-      ctx.fillStyle = "#4ade80";
-      roundRect(ctx, p.x-6, p.y-6, pw+12, ph+12, Math.min(16, pw*0.35), true);
-      ctx.restore();
+      ctx.save(); ctx.globalAlpha = 0.25 + 0.15*Math.sin(state.time*8); ctx.fillStyle = "#4ade80";
+      roundRect(ctx, p.x-6, p.y-6, pw+12, ph+12, Math.min(16, pw*0.35), true); ctx.restore();
     }
     if (state.player.invUntil > state.time) { ctx.globalAlpha = 0.6 + 0.4*Math.sin(state.time*30); }
-
-    ctx.fillStyle = "#58a6ff"; roundRect(ctx, p.x, p.y, pw, ph, Math.min(10, pw*0.25), true);
-    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#58a6ff"; roundRect(ctx, p.x, p.y, pw, ph, Math.min(10, pw*0.25), true); ctx.globalAlpha = 1;
 
     // blocks
     for (const b of state.blocks) {
-      ctx.fillStyle = "#ff6b6b";
-      roundRect(ctx, b.x, b.y, b.w, b.h, Math.min(10, b.w*0.25), true);
-      ctx.globalAlpha = 0.15; ctx.fillStyle = "#ffffff";
-      roundRect(ctx, b.x+b.w*0.1, b.y+b.h*0.08, b.w*0.8, b.h*0.18, 8, true); ctx.globalAlpha = 1;
+      ctx.fillStyle = "#ff6b6b"; roundRect(ctx, b.x, b.y, b.w, b.h, Math.min(10, b.w*0.25), true);
+      ctx.globalAlpha = 0.15; ctx.fillStyle = "#ffffff"; roundRect(ctx, b.x+b.w*0.1, b.y+b.h*0.08, b.w*0.8, b.h*0.18, 8, true); ctx.globalAlpha = 1;
     }
 
     // coins

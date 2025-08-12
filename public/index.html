@@ -408,6 +408,27 @@
 
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d", { alpha:false, desynchronized:true });
+  // Reserve vertical space for bottom UI so the player can't sit under it
+let uiBottom = 140;
+
+function measureUIBottom(){
+  const controls  = document.querySelector('.controls');
+  const abilities = document.getElementById('abilities');
+  let occ = 0;
+
+  if (controls){
+    const r = controls.getBoundingClientRect();
+    occ = Math.max(occ, Math.ceil(r.height || 0)); // controls height
+  }
+  if (abilities){
+    const r = abilities.getBoundingClientRect();
+    const fromBottom = Math.max(0, Math.ceil(window.innerHeight - r.top));
+    occ = Math.max(occ, fromBottom);               // distance abilities sit from bottom
+  }
+
+  // small cushion; and never too tiny
+  uiBottom = Math.max(occ + 16, 120);
+}
 
   let width=0, height=0, dpr=Math.max(1, window.devicePixelRatio||1);
   function fit(){
@@ -417,6 +438,7 @@
     canvas.width=Math.floor(width*dpr); canvas.height=Math.floor(height*dpr);
     canvas.style.width=width+"px"; canvas.style.height=height+"px";
     ctx.setTransform(dpr,0,0,dpr,0,0);
+    measureUIBottom();
   }
   fit(); window.addEventListener("resize", fit);
 
@@ -506,10 +528,17 @@
   bestEl.textContent = state.best; ammoEl.textContent = state.ammo; livesEl.textContent = state.lives; shrinkCountEl.textContent = state.shrinkCharges;
 
   function resetPlayer(){
-    const base = Math.max(36, Math.min(56, Math.floor(Math.min(width,height)*0.06)));
-    state.player.w = base; state.player.h = base;
-    state.player.x = (width - state.player.w)/2; state.player.y = height - state.player.h - 22; state.player.vx = 0; state.player.scale=1;
-  }
+  const base = Math.max(36, Math.min(56, Math.floor(Math.min(width,height)*0.06)));
+  state.player.w = base; state.player.h = base;
+  state.player.vx = 0; state.player.scale = 1;
+
+  const pw = state.player.w * state.player.scale;
+  const ph = state.player.h * state.player.scale;
+  const floorY = height - uiBottom - ph - 10; // keep above controls/abilities
+
+  state.player.x = (width - pw)/2;
+  state.player.y = Math.max(0, floorY);
+}
   resetPlayer();
 
   // Input
@@ -645,6 +674,9 @@
     const pw = p.w * p.scale, ph = p.h * p.scale;
     if (p.x < 0) { p.x = 0; p.vx = Math.max(0, p.vx); }
     if (p.x + pw > width) { p.x = width - pw; p.vx = Math.min(0, p.vx); }
+    // keep player perched above bottom UI (accounts for shrink scaling)
+const floorY = height - uiBottom - ph - 10;
+p.y = Math.max(0, floorY);
 
     state.blockTimer -= worldDT;
     const interval = Math.max(0.22, 0.9 - state.time*0.03);

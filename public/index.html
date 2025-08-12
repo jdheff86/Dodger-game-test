@@ -166,7 +166,7 @@
   <div class="panel">
     <button class="x" id="lbClose">×</button>
     <h2>Global Leaderboard (Top 20)</h2>
-    <table id="lbTable" style="width:100%; border-collapse:collapse;">
+    <table id="lbTable">
       <thead><tr><th style="text-align:left;">#</th><th style="text-align:left;">Name</th><th>Score</th><th>When</th></tr></thead>
       <tbody></tbody>
     </table>
@@ -227,71 +227,82 @@
   const auth = getAuth(app);
   const db   = getFirestore(app);
 
-  // keep sessions across refresh (helps iOS Safari)
   setPersistence(auth, browserLocalPersistence).catch(()=>{});
 
-  // ── Helpers exposed to game code
+  // ── Helpers exposed to game code (aligned to your rules)
   let walletUnsub = null;
 
   window.firebase = {
     auth, db,
+
     onUser(cb){ return onAuthStateChanged(auth, cb); },
+
     async ensureWallet(uid){
       const ref = doc(db, "wallets", uid);
-      const s = await getDoc(ref);
-      if (!s.exists()) await setDoc(ref, { coins:0 });
+      const s = await getDoc(ref).catch(()=>null);
+      if (!s || !s.exists()) await setDoc(ref, { coins: 0 });
       return ref;
     },
+
     async watchWallet(uid, onCoins){
       if (walletUnsub) { walletUnsub(); walletUnsub = null; }
       if (!uid) { onCoins?.(0); return; }
-      const ref = await window.firebase.ensureWallet(uid);
+      const ref = await this.ensureWallet(uid);
       walletUnsub = onSnapshot(ref, (snap)=>{
         const coins = Number(snap.data()?.coins || 0);
         onCoins?.(coins);
       });
     },
+
     async setDisplayName(name){
       if (!auth.currentUser) return;
       const clean = String(name||"Player").trim().slice(0,24);
       await updateProfile(auth.currentUser, { displayName: clean });
       return clean;
     },
+
     async saveScore(score){
       if (!auth.currentUser) return { ok:false, error:"Not signed in" };
       try{
         await addDoc(collection(db,"scores"),{
-          uid:auth.currentUser.uid,
-          name:auth.currentUser.displayName || auth.currentUser.email || "Player",
+          uid: auth.currentUser.uid,
+          name: auth.currentUser.displayName || auth.currentUser.email || "Player",
           score: Math.floor(Number(score)||0),
           ts: serverTimestamp()
         });
         return { ok:true };
       }catch(e){ return { ok:false, error:e.message }; }
     },
+
     async addCoins(n){
       const u = auth.currentUser;
       if (!u) throw new Error("Not signed in");
-      const ref = await window.firebase.ensureWallet(u.uid);
+      const ref = await this.ensureWallet(u.uid);
       await updateDoc(ref, { coins: increment(n|0) });
     },
 
-    /* ✅ Top N scores for leaderboard (single-field sort; no composite index needed) */
-    loadTop: async function (n = 20){
-      const qy = query(
-        collection(db, "scores"),
-        orderBy("score", "desc"),
-        limit(n)
-      );
-      const snap = await getDocs(qy);
-      return snap.docs.map(d => {
-        const data = d.data() || {};
-        return {
-          name: data.name || "Player",
-          score: Number(data.score) || 0,
-          ts: data.ts || null
-        };
-      });
+    async loadTop(n = 20){
+      try{
+        const q1 = query(
+          collection(db,"scores"),
+          orderBy("score","desc"),
+          orderBy("ts","desc"),
+          limit(n)
+        );
+        const s1 = await getDocs(q1);
+        return s1.docs.map(d => {
+          const data = d.data() || {};
+          return { name: data.name||"Player", score: Number(data.score)||0, ts: data.ts||null };
+        });
+      }catch(e){
+        // Fallback if the composite index isn't available
+        const q2 = query(collection(db,"scores"), orderBy("score","desc"), limit(n));
+        const s2 = await getDocs(q2);
+        return s2.docs.map(d => {
+          const data = d.data() || {};
+          return { name: data.name||"Player", score: Number(data.score)||0, ts: data.ts||null };
+        });
+      }
     }
   };
 
@@ -458,9 +469,8 @@
       } else {
         let i=1;
         lbBody.innerHTML = rows.map(r=>{
-          // handle Firestore Timestamp or plain Date/null safely
-          const whenDate = r.ts?.toDate ? r.ts.toDate() : (r.ts instanceof Date ? r.ts : null);
-          const whenTxt = (whenDate && !isNaN(+whenDate))
+          const whenDate = r.ts?.toDate ? r.ts.toDate() : null;
+          const whenTxt = (whenDate instanceof Date && !isNaN(whenDate))
               ? whenDate.toLocaleDateString(undefined,{month:'short', day:'2-digit'})
               : "";
           return `<tr>
@@ -668,13 +678,12 @@
       }
     }
 
-    // coins
+    // coins (pickup) — no manual UI bump; Firestore snapshot updates the chip
     for (let i=state.coins.length-1; i>=0; i--) {
       const c = state.coins[i]; c.y += c.vy * worldDT;
       if (c.y - c.h > height + 8) { state.coins.splice(i,1); continue; }
       if (c.x < p.x + pw && c.x + c.w > p.x && c.y < p.y + ph && c.y + c.h > p.y) {
         state.coins.splice(i,1);
-        coinCountEl.textContent = String((Number(coinCountEl.textContent)||0) + 1);
         window.firebase.addCoins(1).catch(()=>{});
       }
     }

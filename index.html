@@ -13,7 +13,9 @@
   html, body { margin:0; height:100%; background:var(--bg); color:var(--fg);
     font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased; -webkit-tap-highlight-color:transparent; }
-  body { overflow:hidden; touch-action:none; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+  /* don't block taps globally */
+  body { overflow:hidden; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+
   canvas { display:block; width:100%; height:100%; }
   .safe { padding-top: env(safe-area-inset-top); }
 
@@ -52,14 +54,16 @@
   #shrinkBtn{ pointer-events:auto; display:flex; align-items:center; gap:8px; }
   #shrinkCount{ min-width:1.6em; text-align:center; }
 
-  .overlay{ position:absolute; inset:0; z-index:10; display:flex; align-items:center; justify-content:center;
+  /* Overlay sits on top and accepts taps */
+  .overlay{ position:absolute; inset:0; z-index:20; display:flex; align-items:center; justify-content:center;
     background:radial-gradient(1200px 800px at 50% 40%, rgba(88,166,255,.12), rgba(12,15,20,.92) 60%); text-align:center; padding:24px; }
   .card{ max-width:560px; width:92%; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); border-radius:18px; padding:18px; backdrop-filter:blur(10px); }
   .title{ font-size:26px; font-weight:800; margin:4px 0 10px; }
   .subtitle{ color:var(--muted); margin-bottom:14px; }
   .go{ margin-top:12px; width:100%; padding:12px 14px; font-weight:800; font-size:18px; border-radius:14px; border:none; color:#0b1220; background:var(--accent); }
   .muted{ color:var(--muted); font-size:13px; }
-  .modal{ position:absolute; inset:0; z-index:12; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); padding:18px; }
+
+  .modal{ position:absolute; inset:0; z-index:30; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); padding:18px; }
   .panel{ width:min(520px,92%); background:#121826; border:1px solid rgba(255,255,255,.12); border-radius:16px; padding:16px; position:relative; }
   .panel h2{ margin:4px 0 12px; font-size:20px; }
   .grid{ display:grid; gap:10px; }
@@ -70,7 +74,7 @@
   .x{ position:absolute; top:10px; right:12px; background:transparent; border:none; color:var(--muted); font-size:22px; }
   .small { font-size:12px; color:var(--muted); text-decoration:underline; background:none; border:none; padding:0; }
 
-  /* ⬇️ Leaderboard table layout/spacing */
+  /* Leaderboard table */
   #lbTable{ width:100%; border-collapse:separate; border-spacing:0; }
   #lbTable th,#lbTable td{ padding:8px 10px; }
   #lbTable td:nth-child(1){ width:32px; color:var(--muted); }
@@ -142,7 +146,7 @@
   <div class="card">
     <div class="title">DODGER</div>
     <div class="subtitle" id="startSub">Avoid blocks. Power-ups: 🔫 Blaster, ✂ Shrink, 🛡 Shield, 🐌 Slow, 🧲 Magnet, ❤️ Life.</div>
-    <button class="go" id="startBtn">Start</button>
+    <button class="go" id="startBtn" type="button">Start</button>
     <div class="muted">Tip: Add to Home Screen on iPhone for full-screen play.</div>
   </div>
 </div>
@@ -166,7 +170,7 @@
   <div class="panel">
     <button class="x" id="lbClose">×</button>
     <h2>Global Leaderboard (Top 20)</h2>
-    <table id="lbTable" style="width:100%; border-collapse:collapse;">
+    <table id="lbTable">
       <thead><tr><th style="text-align:left;">#</th><th style="text-align:left;">Name</th><th>Score</th><th>When</th></tr></thead>
       <tbody></tbody>
     </table>
@@ -321,6 +325,9 @@
   const startBtn = document.getElementById("startBtn");
   const startSub = document.getElementById("startSub");
 
+  function openModal(m){ m.style.display="flex"; }
+  function closeModal(m){ m.style.display="none"; }
+
   onAuthStateChanged(auth, async (u)=>{
     if (!u){
       userChip.textContent = "Not signed in";
@@ -337,21 +344,18 @@
     startBtn.textContent = "Start";
   });
 
-  function openModal(m){ m.style.display="flex"; }
-  function closeModal(m){ m.style.display="none"; }
-
+  // Modal open/close (use CLICK, not pointerdown)
+  authBtn.addEventListener("click", (e)=>{ e.preventDefault(); openModal(authModal); });
+  authClose.addEventListener("click", (e)=>{ e.preventDefault(); closeModal(authModal); });
   document.querySelectorAll(".modal").forEach(m=>{
-    m.addEventListener("pointerdown", (e)=>{ if(e.target === m) closeModal(m); }, {passive:true});
+    m.addEventListener("click", (e)=>{ if(e.target === m) closeModal(m); });
   });
   document.addEventListener("keydown", (e)=>{
     if (e.key === "Escape") document.querySelectorAll(".modal").forEach(m=>{ if(m.style.display==="flex") closeModal(m); });
   });
 
-  authBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); openModal(authModal); });
-  authClose.addEventListener("pointerdown", e=>{ e.preventDefault(); closeModal(authModal); });
-
-  // Sign in / Sign up
-  btnIn.addEventListener("pointerdown", async e=>{
+  // Auth actions (CLICK)
+  btnIn.addEventListener("click", async e=>{
     e.preventDefault(); authMsg.textContent = "";
     try{
       const email = (authEmail.value || "").trim();
@@ -360,7 +364,7 @@
       closeModal(authModal);
     }catch(err){ authMsg.textContent = prettyAuthError(err); }
   });
-  btnUp.addEventListener("pointerdown", async e=>{
+  btnUp.addEventListener("click", async e=>{
     e.preventDefault(); authMsg.textContent = "";
     try{
       const email = (authEmail.value || "").trim();
@@ -371,21 +375,17 @@
       closeModal(authModal);
     }catch(err){ authMsg.textContent = prettyAuthError(err); }
   });
-  btnOut.addEventListener("pointerdown", async e=>{
+  btnOut.addEventListener("click", async e=>{
     e.preventDefault(); await signOut(auth); closeModal(authModal);
   });
-
-  // Password reset
-  btnForgot.addEventListener("pointerdown", async e=>{
+  btnForgot.addEventListener("click", async e=>{
     e.preventDefault();
     const email = (authEmail.value || "").trim();
     if (!email) { authMsg.textContent = "Enter your email first, then tap Reset."; return; }
     try{
       await sendPasswordResetEmail(auth, email);
       authMsg.textContent = "Password reset email sent. Check your inbox.";
-    }catch(err){
-      authMsg.textContent = prettyAuthError(err);
-    }
+    }catch(err){ authMsg.textContent = prettyAuthError(err); }
   });
 </script>
 
@@ -396,22 +396,6 @@
 
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d", { alpha:false, desynchronized:true });
-
-  /* ---------- GAME STATE (declared early) ---------- */
-  const state = {
-    running:false, paused:false, over:false,
-    score:0, best:Number(localStorage.getItem("dodger_best")||0),
-    time:0, last:performance.now(),
-    player:{ x:0, y:0, w:48, h:48, speed:420, vx:0, scale:1, invUntil:0 },
-    blocks:[], blockTimer:0, difficulty:1,
-    input:{ left:false, right:false, swipeVX:0 },
-    bullets:[],
-    ammo:0, lives:0, shrinkCharges:0,
-    powerups:[], powTimer:2.5,
-    effects:{ shrinkUntil:0, shieldUntil:0, slowUntil:0, magnetUntil:0 },
-    coins:[]
-  };
-  /* ------------------------------------------------- */
 
   // --- Keep player above bottom UI ---
   let width=0, height=0, dpr=Math.max(1, window.devicePixelRatio||1);
@@ -433,9 +417,10 @@
     canvas.style.width=width+"px"; canvas.style.height=height+"px";
     ctx.setTransform(dpr,0,0,dpr,0,0);
 
-    const p = state.player;
-    const floorY = height - uiBottom - (p.h * p.scale) - 10;
-    state.player.y = Math.min(state.player.y, floorY);
+    if (state) {
+      const floorY = height - uiBottom - (state.player.h * state.player.scale) - 10;
+      state.player.y = Math.min(state.player.y, floorY);
+    }
   }
   fit(); window.addEventListener("resize", fit);
 
@@ -464,12 +449,7 @@
   const shrinkBtn = document.getElementById("shrinkBtn");
   const shrinkCountEl = document.getElementById("shrinkCount");
 
-  bestEl.textContent = state.best;
-  ammoEl.textContent = state.ammo;
-  livesEl.textContent = state.lives;
-  shrinkCountEl.textContent = state.shrinkCharges;
-
-  // Only block touch gestures on gameplay surfaces, not the whole document
+  // Only block touch gestures on gameplay surfaces
   const stopTouch = (e) => e.preventDefault();
   ['touchstart','touchmove','gesturestart'].forEach(ev => {
     canvas.addEventListener(ev, stopTouch, { passive:false });
@@ -480,9 +460,9 @@
   });
 
   // Name modal
-  nameBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); nameModal.style.display="flex"; });
-  [nameClose,cancelName].forEach(el=>el.addEventListener("pointerdown", e=>{ e.preventDefault(); nameModal.style.display="none"; }));
-  saveName.addEventListener("pointerdown", async e=>{
+  nameBtn.addEventListener("click", e=>{ e.preventDefault(); nameModal.style.display="flex"; });
+  [nameClose,cancelName].forEach(el=>el.addEventListener("click", e=>{ e.preventDefault(); nameModal.style.display="none"; }));
+  saveName.addEventListener("click", async e=>{
     e.preventDefault();
     const dn = await window.firebase?.setDisplayName?.(nameInput.value||"Player");
     if (dn) { const uc=document.getElementById("userChip"); uc.textContent = `Signed in: ${dn}`; }
@@ -490,7 +470,7 @@
   });
 
   // Leaderboard modal
-  lbBtn.addEventListener("pointerdown", async e=>{
+  lbBtn.addEventListener("click", async e=>{
     e.preventDefault();
     lbBody.innerHTML = "<tr><td colspan='4'>Loading…</td></tr>";
     try{
@@ -517,13 +497,24 @@
     }
     lbModal.style.display="flex";
   });
-  lbClose.addEventListener("pointerdown", e=>{ e.preventDefault(); lbModal.style.display="none"; });
+  lbClose.addEventListener("click", e=>{ e.preventDefault(); lbModal.style.display="none"; });
+  function escapeHtml(x){ return (x||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m])); }
 
-  function escapeHtml(x){
-    return (x||"").replace(/[&<>"']/g, m=>({
-      "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
-    }[m]));
-  }
+  // Game state
+  const state = {
+    running:false, paused:false, over:false,
+    score:0, best:Number(localStorage.getItem("dodger_best")||0),
+    time:0, last:performance.now(),
+    player:{ x:0, y:0, w:48, h:48, speed:420, vx:0, scale:1, invUntil:0 },
+    blocks:[], blockTimer:0, difficulty:1,
+    input:{ left:false, right:false, swipeVX:0 },
+    bullets:[],
+    ammo:0, lives:0, shrinkCharges:0,
+    powerups:[], powTimer:2.5,
+    effects:{ shrinkUntil:0, shieldUntil:0, slowUntil:0, magnetUntil:0 },
+    coins:[]
+  };
+  bestEl.textContent = state.best; ammoEl.textContent = state.ammo; livesEl.textContent = state.lives; shrinkCountEl.textContent = state.shrinkCharges;
 
   function resetPlayer(){
     const base = Math.max(36, Math.min(56, Math.floor(Math.min(width,height)*0.06)));
@@ -537,10 +528,13 @@
   }
   resetPlayer();
 
-  // Input
-  function bindPad(el,dir){ const down=(e)=>{ e.preventDefault(); if(dir<0) state.input.left=true; else state.input.right=true; };
+  // Input (pads keep pointerdown/pointerup)
+  function bindPad(el,dir){
+    const down=(e)=>{ e.preventDefault(); if(dir<0) state.input.left=true; else state.input.right=true; };
     const up=(e)=>{ if(dir<0) state.input.left=false; else state.input.right=false; };
-    el.addEventListener("pointerdown", down); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up); el.addEventListener("pointerleave", up); }
+    el.addEventListener("pointerdown", down); el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up); el.addEventListener("pointerleave", up);
+  }
   bindPad(leftPad,-1); bindPad(rightPad,1);
 
   let swipeActive=false, swipeStartX=0;
@@ -549,7 +543,7 @@
   window.addEventListener("pointerup", ()=>{ swipeActive=false; state.input.swipeVX=0; });
 
   firePad.addEventListener("pointerdown", e=>{ e.preventDefault(); shoot(); });
-  shrinkBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); useShrink(); });
+  shrinkBtn.addEventListener("click", e=>{ e.preventDefault(); useShrink(); });
 
   window.addEventListener("keydown", e=>{
     if(e.key==="ArrowLeft"||e.key==="a") state.input.left=true;
@@ -562,18 +556,18 @@
     if(e.key==="ArrowRight"||e.key==="d") state.input.right=false;
   });
 
-  // Force sign-in on Start (DEFENSIVE GUARD)
-  startBtn.addEventListener("pointerdown", e=>{
+  // Start / Force sign-in (CLICK)
+  startBtn.addEventListener("click", (e)=>{
     e.preventDefault();
-    const u = (window.firebase && window.firebase.auth) ? window.firebase.auth.currentUser : null;
-    if (!u){
+    if (!window.firebase.auth.currentUser){
       document.getElementById("authModal").style.display = "flex";
       return;
     }
     startGame();
   });
 
-  pauseBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); togglePause(); });
+  // Pause (CLICK)
+  pauseBtn.addEventListener("click", e=>{ e.preventDefault(); togglePause(); });
 
   function startGame(){
     state.blocks.length=0; state.bullets.length=0; state.powerups.length=0; state.coins.length=0;
@@ -607,7 +601,6 @@
       ctx.font="700 20px system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif"; ctx.textAlign="center"; ctx.fillText("Paused", width/2, height*0.45); ctx.restore(); }
   }
 
-  /* ---------- GAME LOOP HELPERS ---------- */
   function rand(min,max){ return Math.random()*(max-min)+min; }
   function roundRect(ctx,x,y,w,h,r,fill){ ctx.beginPath(); const rr=Math.min(r,w/2,h/2);
     ctx.moveTo(x+rr,y); ctx.arcTo(x+w,y, x+w,y+h, rr); ctx.arcTo(x+w,y+h, x,y+h, rr);
@@ -756,7 +749,6 @@
 
     const p = state.player, pw = p.w*p.scale, ph = p.h*p.scale;
 
-    // player + effects
     if (state.effects.shieldUntil > state.time) {
       ctx.save(); ctx.globalAlpha = 0.25 + 0.15*Math.sin(state.time*8); ctx.fillStyle = "#4ade80";
       roundRect(ctx, p.x-6, p.y-6, pw+12, ph+12, Math.min(16, pw*0.35), true); ctx.restore();
@@ -764,27 +756,9 @@
     if (state.player.invUntil > state.time) { ctx.globalAlpha = 0.6 + 0.4*Math.sin(state.time*30); }
     ctx.fillStyle = "#58a6ff"; roundRect(ctx, p.x, p.y, pw, ph, Math.min(10, pw*0.25), true); ctx.globalAlpha = 1;
 
-    // blocks
     for (const b of state.blocks) {
       ctx.fillStyle = "#ff6b6b"; roundRect(ctx, b.x, b.y, b.w, b.h, Math.min(10, b.w*0.25), true);
       ctx.globalAlpha = 0.15; ctx.fillStyle = "#ffffff"; roundRect(ctx, b.x+b.w*0.1, b.y+b.h*0.08, b.w*0.8, b.h*0.18, 8, true); ctx.globalAlpha = 1;
-    }
-
-    // power-ups
-    for (const u of state.powerups) {
-      const r = Math.min(u.w, u.h);
-      let bg="#ffd166", label="🔫";
-      if (u.type==="shrink"){ bg="#60a5fa"; label="✂"; }
-      else if (u.type==="shield"){ bg="#4ade80"; label="🛡"; }
-      else if (u.type==="slow"){ bg="#a78bfa"; label="🐌"; }
-      else if (u.type==="magnet"){ bg="#f472b6"; label="🧲"; }
-      else if (u.type==="life"){ bg="#ef4444"; label="❤️"; }
-      ctx.fillStyle = bg;
-      roundRect(ctx, u.x, u.y, u.w, u.h, Math.min(10, r*0.25), true);
-      ctx.font = `${Math.floor(r*0.7)}px system-ui,apple color emoji,Segoe UI Emoji,Emoji`;
-      ctx.textAlign="center"; ctx.textBaseline="middle";
-      ctx.fillStyle = "rgba(0,0,0,0.85)";
-      ctx.fillText(label, u.x + u.w/2, u.y + u.h/2 + 1);
     }
 
     // coins
@@ -816,69 +790,6 @@
 
   draw();
 })();
-</script>
-<!-- iOS Debug Console -->
-<script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-<script>
-  (function () {
-    // Wait until Eruda is loaded, then init
-    function initConsole() {
-      if (typeof eruda !== 'undefined') {
-        eruda.init();
-        console.log('%c[DEBUG] Eruda console loaded successfully!', 'color: lime; font-weight: bold;');
-      } else {
-        console.error('[DEBUG] Eruda failed to load.');
-      }
-    }
-
-    // Load Eruda and then run init
-    if (!window.eruda) {
-      var script = document.createElement('script');
-      script.src = "https://cdn.jsdelivr.net/npm/eruda";
-      script.onload = initConsole;
-      document.body.appendChild(script);
-    } else {
-      initConsole();
-    }
-  })();
-</script>
-<!-- Simple On-Page Debug Console -->
-<style>
-  #debugLog {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    max-height: 150px;
-    overflow-y: auto;
-    background: rgba(0,0,0,0.85);
-    color: #0f0;
-    font-family: monospace;
-    font-size: 12px;
-    padding: 5px;
-    z-index: 99999;
-  }
-</style>
-<div id="debugLog"></div>
-<script>
-  (function(){
-    const logDiv = document.getElementById('debugLog');
-    function addLog(type, args) {
-      const msg = document.createElement('div');
-      msg.textContent = `[${type.toUpperCase()}] ` + Array.from(args).join(' ');
-      msg.style.color = type === 'error' ? 'red' : '#0f0';
-      logDiv.appendChild(msg);
-      logDiv.scrollTop = logDiv.scrollHeight;
-    }
-    ['log','error'].forEach(fn => {
-      const orig = console[fn];
-      console[fn] = function() {
-        addLog(fn, arguments);
-        orig.apply(console, arguments);
-      };
-    });
-    console.log("✅ Debug console ready.");
-  })();
 </script>
 </body>
 </html>

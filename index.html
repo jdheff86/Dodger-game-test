@@ -17,7 +17,7 @@
   canvas { display:block; width:100%; height:100%; }
   .safe { padding-top: env(safe-area-inset-top); }
 
-  /* HUD -*/
+  /* HUD */
   header { position:absolute; top:0; left:0; right:0; z-index:8; display:flex; flex-direction:column; padding:8px 10px; gap:6px; pointer-events:none; }
   #hud { --s:0.82; }
   .topbar,.toolbar{ display:flex; align-items:center; justify-content:space-between; gap:calc(8px*var(--s)); height:calc(44px*var(--s)); flex-wrap:nowrap; }
@@ -409,14 +409,33 @@
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d", { alpha:false, desynchronized:true });
 
+  // --- Keep player above bottom UI ---
   let width=0, height=0, dpr=Math.max(1, window.devicePixelRatio||1);
+  let uiBottom = 140; // dynamic clearance for controls + abilities
+
+  function measureUIBottom(){
+    const controls = document.querySelector('.controls');
+    const ch = controls ? controls.getBoundingClientRect().height : 0;
+    const pad = 28; // cushion
+    // abilities bar uses bottom:110px; add some extra space on top of that
+    uiBottom = Math.max(110 + 40, ch + pad);
+  }
+
   function fit(){
+    measureUIBottom();
     width=Math.max(320,Math.floor(window.innerWidth||document.documentElement.clientWidth));
     height=Math.max(480,Math.floor(window.innerHeight||document.documentElement.clientHeight));
     dpr=Math.max(1, window.devicePixelRatio||1);
     canvas.width=Math.floor(width*dpr); canvas.height=Math.floor(height*dpr);
     canvas.style.width=width+"px"; canvas.style.height=height+"px";
     ctx.setTransform(dpr,0,0,dpr,0,0);
+
+    // if already initialized, keep player perched on the new floor
+    if (state) {
+      const ph = state.player.h * state.player.scale;
+      const floorY = height - uiBottom - ph - 10;
+      state.player.y = Math.min(state.player.y, floorY);
+    }
   }
   fit(); window.addEventListener("resize", fit);
 
@@ -445,6 +464,7 @@
   const shrinkBtn = document.getElementById("shrinkBtn");
   const shrinkCountEl = document.getElementById("shrinkCount");
 
+  // Only block touch gestures on gameplay surfaces, not overlays/modals
   const prevent=(e)=>{ if (e.target.closest(".overlay") || e.target.closest(".modal")) return; e.preventDefault(); };
   ["touchstart","touchmove","touchend","gesturestart"].forEach(ev=>document.addEventListener(ev, prevent, { passive:false }));
 
@@ -487,7 +507,7 @@
     lbModal.style.display="flex";
   });
   lbClose.addEventListener("pointerdown", e=>{ e.preventDefault(); lbModal.style.display="none"; });
-  function escapeHtml(x){ return (x||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m])); }
+  function escapeHtml(x){ return (x||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;"," >":"&gt;","\"":"&quot;","'":"&#39;" }[m])); }
 
   // Game state
   const state = {
@@ -508,14 +528,22 @@
   function resetPlayer(){
     const base = Math.max(36, Math.min(56, Math.floor(Math.min(width,height)*0.06)));
     state.player.w = base; state.player.h = base;
-    state.player.x = (width - state.player.w)/2; state.player.y = height - state.player.h - 22; state.player.vx = 0; state.player.scale=1;
+    const pw = state.player.w * state.player.scale;
+    const ph = state.player.h * state.player.scale;
+    const floorY = height - uiBottom - ph - 10; // sit above controls & abilities
+    state.player.x = (width - pw)/2;
+    state.player.y = floorY;
+    state.player.vx = 0; state.player.scale=1;
   }
   resetPlayer();
 
   // Input
-  function bindPad(el,dir){ const down=(e)=>{ e.preventDefault(); if(dir<0) state.input.left=true; else state.input.right=true; };
+  function bindPad(el,dir){
+    const down=(e)=>{ e.preventDefault(); if(dir<0) state.input.left=true; else state.input.right=true; };
     const up=(e)=>{ if(dir<0) state.input.left=false; else state.input.right=false; };
-    el.addEventListener("pointerdown", down); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up); el.addEventListener("pointerleave", up); }
+    el.addEventListener("pointerdown", down); el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up); el.addEventListener("pointerleave", up);
+  }
   bindPad(leftPad,-1); bindPad(rightPad,1);
 
   let swipeActive=false, swipeStartX=0;
@@ -642,9 +670,13 @@
     targetVX += state.input.swipeVX;
     p.vx += (targetVX - p.vx) * Math.min(1, dt*10);
     p.x += p.vx * dt;
+
+    // clamp horizontal & keep player on the "floor" above UI
     const pw = p.w * p.scale, ph = p.h * p.scale;
     if (p.x < 0) { p.x = 0; p.vx = Math.max(0, p.vx); }
     if (p.x + pw > width) { p.x = width - pw; p.vx = Math.min(0, p.vx); }
+    const floorY = height - uiBottom - ph - 10;
+    p.y = floorY;
 
     state.blockTimer -= worldDT;
     const interval = Math.max(0.22, 0.9 - state.time*0.03);
@@ -678,7 +710,7 @@
       }
     }
 
-    // coins (pickup) — no manual UI bump; Firestore snapshot updates the chip
+    // coins (pickup) — Firestore snapshot updates the chip
     for (let i=state.coins.length-1; i>=0; i--) {
       const c = state.coins[i]; c.y += c.vy * worldDT;
       if (c.y - c.h > height + 8) { state.coins.splice(i,1); continue; }

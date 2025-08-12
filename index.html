@@ -397,7 +397,7 @@
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d", { alpha:false, desynchronized:true });
 
-  // --- Declare state BEFORE fit() ever runs ---
+  /* ---------- GAME STATE (declared early) ---------- */
   const state = {
     running:false, paused:false, over:false,
     score:0, best:Number(localStorage.getItem("dodger_best")||0),
@@ -411,6 +411,7 @@
     effects:{ shrinkUntil:0, shieldUntil:0, slowUntil:0, magnetUntil:0 },
     coins:[]
   };
+  /* ------------------------------------------------- */
 
   // --- Keep player above bottom UI ---
   let width=0, height=0, dpr=Math.max(1, window.devicePixelRatio||1);
@@ -432,7 +433,6 @@
     canvas.style.width=width+"px"; canvas.style.height=height+"px";
     ctx.setTransform(dpr,0,0,dpr,0,0);
 
-    // keep player perched above UI if game already initialized
     const p = state.player;
     const floorY = height - uiBottom - (p.h * p.scale) - 10;
     state.player.y = Math.min(state.player.y, floorY);
@@ -464,18 +464,17 @@
   const shrinkBtn = document.getElementById("shrinkBtn");
   const shrinkCountEl = document.getElementById("shrinkCount");
 
-  // Show best/ammo/lives initially
-  bestEl.textContent = state.best; ammoEl.textContent = state.ammo; livesEl.textContent = state.lives; shrinkCountEl.textContent = state.shrinkCharges;
+  bestEl.textContent = state.best;
+  ammoEl.textContent = state.ammo;
+  livesEl.textContent = state.lives;
+  shrinkCountEl.textContent = state.shrinkCharges;
 
   // Only block touch gestures on gameplay surfaces, not the whole document
   const stopTouch = (e) => e.preventDefault();
   ['touchstart','touchmove','gesturestart'].forEach(ev => {
-    // canvas
     canvas.addEventListener(ev, stopTouch, { passive:false });
-    // on-screen control pads
     const controlsEl = document.querySelector('.controls');
     if (controlsEl) controlsEl.addEventListener(ev, stopTouch, { passive:false });
-    // ability bar
     const abilitiesEl = document.getElementById('abilities');
     if (abilitiesEl) abilitiesEl.addEventListener(ev, stopTouch, { passive:false });
   });
@@ -522,11 +521,7 @@
 
   function escapeHtml(x){
     return (x||"").replace(/[&<>"']/g, m=>({
-      "&":"&amp;",
-      "<":"&lt;",
-      ">":"&gt;",
-      "\"":"&quot;",
-      "'":"&#39;"
+      "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
     }[m]));
   }
 
@@ -535,7 +530,7 @@
     state.player.w = base; state.player.h = base;
     const pw = state.player.w * state.player.scale;
     const ph = state.player.h * state.player.scale;
-    const floorY = height - uiBottom - ph - 10; // keep above controls & shrink bar
+    const floorY = height - uiBottom - ph - 10;
     state.player.x = (width - pw)/2;
     state.player.y = floorY;
     state.player.vx = 0; state.player.scale=1;
@@ -567,15 +562,17 @@
     if(e.key==="ArrowRight"||e.key==="d") state.input.right=false;
   });
 
-  // Force sign-in on Start
+  // Force sign-in on Start (DEFENSIVE GUARD)
   startBtn.addEventListener("pointerdown", e=>{
     e.preventDefault();
-    if (!window.firebase.auth.currentUser){
+    const u = (window.firebase && window.firebase.auth) ? window.firebase.auth.currentUser : null;
+    if (!u){
       document.getElementById("authModal").style.display = "flex";
       return;
     }
     startGame();
   });
+
   pauseBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); togglePause(); });
 
   function startGame(){
@@ -610,13 +607,12 @@
       ctx.font="700 20px system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif"; ctx.textAlign="center"; ctx.fillText("Paused", width/2, height*0.45); ctx.restore(); }
   }
 
-  // Helpers
+  /* ---------- GAME LOOP HELPERS ---------- */
   function rand(min,max){ return Math.random()*(max-min)+min; }
   function roundRect(ctx,x,y,w,h,r,fill){ ctx.beginPath(); const rr=Math.min(r,w/2,h/2);
     ctx.moveTo(x+rr,y); ctx.arcTo(x+w,y, x+w,y+h, rr); ctx.arcTo(x+w,y+h, x,y+h, rr);
     ctx.arcTo(x,y+h, x,y, rr); ctx.arcTo(x,y, x+w,y, rr); ctx.closePath(); if(fill) ctx.fill(); }
 
-  // Spawners
   function spawnBlock(){
     const size = rand(Math.max(22,width*0.03), Math.max(38,width*0.07));
     const x = rand(0, width - size);
@@ -645,7 +641,6 @@
     state.coins.push({ x, y:-size, w:size, h:size, vy, t0 });
   }
 
-  // Actions
   function shoot(){
     if (state.ammo <= 0 || state.over || !state.running) return;
     state.ammo--; ammoEl.textContent = state.ammo;
@@ -658,7 +653,6 @@
     state.effects.shrinkUntil = Math.max(state.effects.shrinkUntil, state.time) + 6;
   }
 
-  // Update & draw
   function update(dt){
     state.time += dt;
     state.score += dt*10;
@@ -677,7 +671,6 @@
     p.vx += (targetVX - p.vx) * Math.min(1, dt*10);
     p.x += p.vx * dt;
 
-    // clamp horizontal & keep player on the "floor" above UI
     const pw = p.w * p.scale, ph = p.h * p.scale;
     if (p.x < 0) { p.x = 0; p.vx = Math.max(0, p.vx); }
     if (p.x + pw > width) { p.x = width - pw; p.vx = Math.min(0, p.vx); }

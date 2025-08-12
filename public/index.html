@@ -233,19 +233,15 @@
   // ── Helpers exposed to game code
   let walletUnsub = null;
 
-  // ✅ Make sure every function you need is actually on window.firebase
   window.firebase = {
     auth, db,
-
     onUser(cb){ return onAuthStateChanged(auth, cb); },
-
     async ensureWallet(uid){
       const ref = doc(db, "wallets", uid);
       const s = await getDoc(ref);
       if (!s.exists()) await setDoc(ref, { coins:0 });
       return ref;
     },
-
     async watchWallet(uid, onCoins){
       if (walletUnsub) { walletUnsub(); walletUnsub = null; }
       if (!uid) { onCoins?.(0); return; }
@@ -255,14 +251,12 @@
         onCoins?.(coins);
       });
     },
-
     async setDisplayName(name){
       if (!auth.currentUser) return;
       const clean = String(name||"Player").trim().slice(0,24);
       await updateProfile(auth.currentUser, { displayName: clean });
       return clean;
     },
-
     async saveScore(score){
       if (!auth.currentUser) return { ok:false, error:"Not signed in" };
       try{
@@ -275,7 +269,6 @@
         return { ok:true };
       }catch(e){ return { ok:false, error:e.message }; }
     },
-
     async addCoins(n){
       const u = auth.currentUser;
       if (!u) throw new Error("Not signed in");
@@ -283,8 +276,8 @@
       await updateDoc(ref, { coins: increment(n|0) });
     },
 
-    // ✅ Leaderboard: fetch top N by score (single field sort = no composite index required)
-    async loadTop(n = 20){
+    /* ✅ Top N scores for leaderboard (single-field sort; no composite index needed) */
+    loadTop: async function (n = 20){
       const qy = query(
         collection(db, "scores"),
         orderBy("score", "desc"),
@@ -295,15 +288,12 @@
         const data = d.data() || {};
         return {
           name: data.name || "Player",
-          score: Number(data.score)||0,
+          score: Number(data.score) || 0,
           ts: data.ts || null
         };
       });
     }
   };
-
-  // (…keep the rest of your script exactly as-is…)
-</script>
 
   function prettyAuthError(err){
     const code = (err && err.code) || "";
@@ -468,8 +458,9 @@
       } else {
         let i=1;
         lbBody.innerHTML = rows.map(r=>{
-          const whenDate = r.ts?.toDate ? r.ts.toDate() : null;
-          const whenTxt = (whenDate instanceof Date && !isNaN(whenDate))
+          // handle Firestore Timestamp or plain Date/null safely
+          const whenDate = r.ts?.toDate ? r.ts.toDate() : (r.ts instanceof Date ? r.ts : null);
+          const whenTxt = (whenDate && !isNaN(+whenDate))
               ? whenDate.toLocaleDateString(undefined,{month:'short', day:'2-digit'})
               : "";
           return `<tr>
@@ -747,11 +738,7 @@
       for (let i=0;i<16;i++){ const a=i*(Math.PI*2/16); ctx.beginPath(); ctx.arc(Math.cos(a)*(r-3), Math.sin(a)*(r-3), 1.8, 0, Math.PI*2); ctx.fill(); }
       ctx.restore();
       ctx.beginPath(); ctx.arc(cx, cy, r*0.55, 0, Math.PI*2); ctx.fillStyle="rgba(0,0,0,.15)"; ctx.fill();
-
-      ctx.fillStyle="#2b1900";
-      ctx.font=`${Math.max(10, r*0.9)}px system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial`;
-      ctx.textAlign="center"; ctx.textBaseline="middle";
-      ctx.fillText("D", cx, cy+1);
+      ctx.fillStyle="#2b1900"; ctx.font=`${Math.max(10, r*0.9)}px system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("D", cx, cy+1);
     }
 
     // bullets

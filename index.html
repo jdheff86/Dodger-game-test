@@ -13,12 +13,11 @@
   html, body { margin:0; height:100%; background:var(--bg); color:var(--fg);
     font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased; -webkit-tap-highlight-color:transparent; }
-  /* allow taps to generate clicks on iOS */
-  body { overflow:hidden; touch-action:manipulation; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+  body { overflow:hidden; touch-action:none; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
   canvas { display:block; width:100%; height:100%; }
   .safe { padding-top: env(safe-area-inset-top); }
 
-  /* HUD */
+  /* HUD -*/
   header { position:absolute; top:0; left:0; right:0; z-index:8; display:flex; flex-direction:column; padding:8px 10px; gap:6px; pointer-events:none; }
   #hud { --s:0.82; }
   .topbar,.toolbar{ display:flex; align-items:center; justify-content:space-between; gap:calc(8px*var(--s)); height:calc(44px*var(--s)); flex-wrap:nowrap; }
@@ -43,18 +42,22 @@
   /* FIRE pad content */
   .fireInner{ display:flex; align-items:center; gap:8px; }
   .fireLabel{ font-weight:800; letter-spacing:0.3px; }
-  .ammoBadge{ min-width:2.1em; text-align:center; font-variant-numeric:tabular-nums; padding:4px 8px; border-radius:999px; background:rgba(88,166,255,.18); border:1px solid rgba(88,166,255,.35); }
+  .ammoBadge{
+    min-width:2.1em; text-align:center; font-variant-numeric:tabular-nums;
+    padding:4px 8px; border-radius:999px; background:rgba(88,166,255,.18);
+    border:1px solid rgba(88,166,255,.35);
+  }
 
   #abilities{ position:absolute; left:0; right:0; bottom:110px; display:flex; justify-content:center; z-index:6; pointer-events:none; }
   #shrinkBtn{ pointer-events:auto; display:flex; align-items:center; gap:8px; }
   #shrinkCount{ min-width:1.6em; text-align:center; }
 
   .overlay{ position:absolute; inset:0; z-index:7; display:flex; align-items:center; justify-content:center;
-    background:radial-gradient(1200px 800px at 50% 40%, rgba(88,166,255,.12), rgba(12,15,20,.92) 60%); text-align:center; padding:24px; pointer-events:auto; }
-  .card{ max-width:560px; width:92%; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); border-radius:18px; padding:18px; backdrop-filter:blur(10px); pointer-events:auto; }
+    background:radial-gradient(1200px 800px at 50% 40%, rgba(88,166,255,.12), rgba(12,15,20,.92) 60%); text-align:center; padding:24px; }
+  .card{ max-width:560px; width:92%; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); border-radius:18px; padding:18px; backdrop-filter:blur(10px); }
   .title{ font-size:26px; font-weight:800; margin:4px 0 10px; }
   .subtitle{ color:var(--muted); margin-bottom:14px; }
-  .go{ margin-top:12px; width:100%; padding:12px 14px; font-weight:800; font-size:18px; border-radius:14px; border:none; color:#0b1220; background:var(--accent); pointer-events:auto; }
+  .go{ margin-top:12px; width:100%; padding:12px 14px; font-weight:800; font-size:18px; border-radius:14px; border:none; color:#0b1220; background:var(--accent); }
   .muted{ color:var(--muted); font-size:13px; }
   .modal{ position:absolute; inset:0; z-index:12; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); padding:18px; }
   .panel{ width:min(520px,92%); background:#121826; border:1px solid rgba(255,255,255,.12); border-radius:16px; padding:16px; position:relative; }
@@ -67,7 +70,7 @@
   .x{ position:absolute; top:10px; right:12px; background:transparent; border:none; color:var(--muted); font-size:22px; }
   .small { font-size:12px; color:var(--muted); text-decoration:underline; background:none; border:none; padding:0; }
 
-  /* Leaderboard table */
+  /* ⬇️ Leaderboard table layout/spacing */
   #lbTable{ width:100%; border-collapse:separate; border-spacing:0; }
   #lbTable th,#lbTable td{ padding:8px 10px; }
   #lbTable td:nth-child(1){ width:32px; color:var(--muted); }
@@ -139,8 +142,7 @@
   <div class="card">
     <div class="title">DODGER</div>
     <div class="subtitle" id="startSub">Avoid blocks. Power-ups: 🔫 Blaster, ✂ Shrink, 🛡 Shield, 🐌 Slow, 🧲 Magnet, ❤️ Life.</div>
-    <!-- inline onclick as a final safety net on iOS -->
-    <button class="go" id="startBtn" onclick="window.__startBtn && window.__startBtn()">Start</button>
+    <button class="go" id="startBtn">Start</button>
     <div class="muted">Tip: Add to Home Screen on iPhone for full-screen play.</div>
   </div>
 </div>
@@ -164,7 +166,7 @@
   <div class="panel">
     <button class="x" id="lbClose">×</button>
     <h2>Global Leaderboard (Top 20)</h2>
-    <table id="lbTable" style="width:100%; border-collapse:collapse;">
+    <table id="lbTable">
       <thead><tr><th style="text-align:left;">#</th><th style="text-align:left;">Name</th><th>Score</th><th>When</th></tr></thead>
       <tbody></tbody>
     </table>
@@ -179,8 +181,11 @@
     <h2>Account</h2>
     <div id="authMsg" class="muted" style="margin-bottom:8px;"></div>
     <div class="grid">
-      <input id="authEmail" type="email" placeholder="Email" autocapitalize="none" autocomplete="username" inputmode="email" spellcheck="false">
-      <input id="authPass" type="password" placeholder="Password (min 6)" autocomplete="current-password">
+      <input id="authEmail" type="email" placeholder="Email"
+             autocapitalize="none" autocomplete="username"
+             inputmode="email" spellcheck="false">
+      <input id="authPass" type="password" placeholder="Password (min 6)"
+             autocomplete="current-password">
     </div>
     <div class="actions">
       <button class="btn2" id="authSignin">Sign in</button>
@@ -193,7 +198,7 @@
   </div>
 </div>
 
-<!-- ===== Firebase (Auth + Firestore) + Game ===== -->
+<!-- ===== Firebase (Auth + Firestore) ===== -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
   import {
@@ -224,57 +229,80 @@
 
   setPersistence(auth, browserLocalPersistence).catch(()=>{});
 
+  // ── Helpers exposed to game code (aligned to your rules)
   let walletUnsub = null;
 
   window.firebase = {
     auth, db,
+
     onUser(cb){ return onAuthStateChanged(auth, cb); },
+
     async ensureWallet(uid){
       const ref = doc(db, "wallets", uid);
-      const s = await getDoc(ref);
-      if (!s.exists()) await setDoc(ref, { coins:0 });
+      const s = await getDoc(ref).catch(()=>null);
+      if (!s || !s.exists()) await setDoc(ref, { coins: 0 });
       return ref;
     },
+
     async watchWallet(uid, onCoins){
       if (walletUnsub) { walletUnsub(); walletUnsub = null; }
       if (!uid) { onCoins?.(0); return; }
-      const ref = await window.firebase.ensureWallet(uid);
+      const ref = await this.ensureWallet(uid);
       walletUnsub = onSnapshot(ref, (snap)=>{
         const coins = Number(snap.data()?.coins || 0);
         onCoins?.(coins);
       });
     },
+
     async setDisplayName(name){
       if (!auth.currentUser) return;
       const clean = String(name||"Player").trim().slice(0,24);
       await updateProfile(auth.currentUser, { displayName: clean });
       return clean;
     },
+
     async saveScore(score){
       if (!auth.currentUser) return { ok:false, error:"Not signed in" };
       try{
         await addDoc(collection(db,"scores"),{
-          uid:auth.currentUser.uid,
-          name:auth.currentUser.displayName || auth.currentUser.email || "Player",
+          uid: auth.currentUser.uid,
+          name: auth.currentUser.displayName || auth.currentUser.email || "Player",
           score: Math.floor(Number(score)||0),
           ts: serverTimestamp()
         });
         return { ok:true };
       }catch(e){ return { ok:false, error:e.message }; }
     },
+
     async addCoins(n){
       const u = auth.currentUser;
       if (!u) throw new Error("Not signed in");
-      const ref = await window.firebase.ensureWallet(u.uid);
+      const ref = await this.ensureWallet(u.uid);
       await updateDoc(ref, { coins: increment(n|0) });
     },
+
     async loadTop(n = 20){
-      const qy = query(collection(db,"scores"), orderBy("score","desc"), limit(n));
-      const snap = await getDocs(qy);
-      return snap.docs.map(d => {
-        const data = d.data() || {};
-        return { name:data.name||"Player", score:Number(data.score)||0, ts:data.ts||null };
-      });
+      try{
+        const q1 = query(
+          collection(db,"scores"),
+          orderBy("score","desc"),
+          orderBy("ts","desc"),
+          limit(n)
+        );
+        const s1 = await getDocs(q1);
+        return s1.docs.map(d => {
+          const data = d.data() || {};
+          return { name: data.name||"Player", score: Number(data.score)||0, ts: data.ts||null };
+        });
+      }catch(e){
+        // Fallback if the composite index isn't available
+        const q2 = query(collection(db,"scores"), orderBy("score","desc"), limit(n));
+        const s2 = await getDocs(q2);
+        return s2.docs.map(d => {
+          const data = d.data() || {};
+          return { name: data.name||"Player", score: Number(data.score)||0, ts: data.ts||null };
+        });
+      }
     }
   };
 
@@ -331,11 +359,12 @@
     if (e.key === "Escape") document.querySelectorAll(".modal").forEach(m=>{ if(m.style.display==="flex") closeModal(m); });
   });
 
-  authBtn.addEventListener("click", ()=>openModal(authModal));
-  authClose.addEventListener("click", ()=>closeModal(authModal));
+  authBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); openModal(authModal); });
+  authClose.addEventListener("pointerdown", e=>{ e.preventDefault(); closeModal(authModal); });
 
-  btnIn.addEventListener("click", async ()=>{
-    authMsg.textContent = "";
+  // Sign in / Sign up
+  btnIn.addEventListener("pointerdown", async e=>{
+    e.preventDefault(); authMsg.textContent = "";
     try{
       const email = (authEmail.value || "").trim();
       const pass  = authPass.value || "";
@@ -343,8 +372,8 @@
       closeModal(authModal);
     }catch(err){ authMsg.textContent = prettyAuthError(err); }
   });
-  btnUp.addEventListener("click", async ()=>{
-    authMsg.textContent = "";
+  btnUp.addEventListener("pointerdown", async e=>{
+    e.preventDefault(); authMsg.textContent = "";
     try{
       const email = (authEmail.value || "").trim();
       const pass  = authPass.value || "";
@@ -354,52 +383,52 @@
       closeModal(authModal);
     }catch(err){ authMsg.textContent = prettyAuthError(err); }
   });
-  btnOut.addEventListener("click", async ()=>{ await signOut(auth); closeModal(authModal); });
-  btnForgot.addEventListener("click", async ()=>{
+  btnOut.addEventListener("pointerdown", async e=>{
+    e.preventDefault(); await signOut(auth); closeModal(authModal);
+  });
+
+  // Password reset
+  btnForgot.addEventListener("pointerdown", async e=>{
+    e.preventDefault();
     const email = (authEmail.value || "").trim();
     if (!email) { authMsg.textContent = "Enter your email first, then tap Reset."; return; }
     try{
       await sendPasswordResetEmail(auth, email);
       authMsg.textContent = "Password reset email sent. Check your inbox.";
-    }catch(err){ authMsg.textContent = prettyAuthError(err); }
+    }catch(err){
+      authMsg.textContent = prettyAuthError(err);
+    }
   });
+</script>
 
-  /* ===== Game code ===== */
+<!-- ===== Game code ===== -->
+<script>
+(function () {
+  "use strict";
+
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d", { alpha:false, desynchronized:true });
 
-  // --- Keep player above bottom UI ---
   let width=0, height=0, dpr=Math.max(1, window.devicePixelRatio||1);
-  let uiBottom = 140;
-
-  function measureUIBottom(){
-    const controls = document.querySelector('.controls');
-    const ch = controls ? controls.getBoundingClientRect().height : 0;
-    const pad = 28;
-    uiBottom = Math.max(110 + 40, ch + pad);
-  }
-
   function fit(){
-    measureUIBottom();
     width=Math.max(320,Math.floor(window.innerWidth||document.documentElement.clientWidth));
     height=Math.max(480,Math.floor(window.innerHeight||document.documentElement.clientHeight));
     dpr=Math.max(1, window.devicePixelRatio||1);
     canvas.width=Math.floor(width*dpr); canvas.height=Math.floor(height*dpr);
     canvas.style.width=width+"px"; canvas.style.height=height+"px";
     ctx.setTransform(dpr,0,0,dpr,0,0);
-
-    if (state) {
-      const floorY = height - uiBottom - (state.player.h * state.player.scale) - 10;
-      state.player.y = Math.min(state.player.y, floorY);
-    }
   }
   fit(); window.addEventListener("resize", fit);
 
+  // UI refs
   const scoreEl = document.getElementById("score");
   const bestEl  = document.getElementById("best");
   const ammoEl  = document.getElementById("ammo");
   const livesEl = document.getElementById("lives");
+  const coinCountEl = document.getElementById("coinCount");
+  const startBtn= document.getElementById("startBtn");
   const pauseBtn= document.getElementById("pauseBtn");
+  const overlay = document.getElementById("overlay");
   const leftPad = document.getElementById("leftPad");
   const rightPad= document.getElementById("rightPad");
   const firePad = document.getElementById("firePad");
@@ -415,17 +444,23 @@
   const lbBody = document.querySelector("#lbTable tbody");
   const shrinkBtn = document.getElementById("shrinkBtn");
   const shrinkCountEl = document.getElementById("shrinkCount");
-  const overlay = document.getElementById("overlay");
 
-  nameBtn.addEventListener("click", ()=>{ nameModal.style.display="flex"; });
-  [nameClose,cancelName].forEach(el=>el.addEventListener("click", ()=>{ nameModal.style.display="none"; }));
-  saveName.addEventListener("click", async ()=>{
+  const prevent=(e)=>{ if (e.target.closest(".overlay") || e.target.closest(".modal")) return; e.preventDefault(); };
+  ["touchstart","touchmove","touchend","gesturestart"].forEach(ev=>document.addEventListener(ev, prevent, { passive:false }));
+
+  // Name modal
+  nameBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); nameModal.style.display="flex"; });
+  [nameClose,cancelName].forEach(el=>el.addEventListener("pointerdown", e=>{ e.preventDefault(); nameModal.style.display="none"; }));
+  saveName.addEventListener("pointerdown", async e=>{
+    e.preventDefault();
     const dn = await window.firebase?.setDisplayName?.(nameInput.value||"Player");
     if (dn) { const uc=document.getElementById("userChip"); uc.textContent = `Signed in: ${dn}`; }
     nameModal.style.display="none";
   });
 
-  lbBtn.addEventListener("click", async ()=>{
+  // Leaderboard modal
+  lbBtn.addEventListener("pointerdown", async e=>{
+    e.preventDefault();
     lbBody.innerHTML = "<tr><td colspan='4'>Loading…</td></tr>";
     try{
       const rows = await window.firebase.loadTop(20);
@@ -451,9 +486,10 @@
     }
     lbModal.style.display="flex";
   });
-  lbClose.addEventListener("click", ()=>{ lbModal.style.display="none"; });
-  function escapeHtml(x){ return (x||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;","&gt;":"&gt;","\"":"&quot;","'":"&#39;" }[m])); }
+  lbClose.addEventListener("pointerdown", e=>{ e.preventDefault(); lbModal.style.display="none"; });
+  function escapeHtml(x){ return (x||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m])); }
 
+  // Game state
   const state = {
     running:false, paused:false, over:false,
     score:0, best:Number(localStorage.getItem("dodger_best")||0),
@@ -472,23 +508,14 @@
   function resetPlayer(){
     const base = Math.max(36, Math.min(56, Math.floor(Math.min(width,height)*0.06)));
     state.player.w = base; state.player.h = base;
-    const pw = state.player.w * state.player.scale;
-    const ph = state.player.h * state.player.scale;
-    const floorY = height - uiBottom - ph - 10;
-    state.player.x = (width - pw)/2;
-    state.player.y = floorY;
-    state.player.vx = 0; state.player.scale=1;
+    state.player.x = (width - state.player.w)/2; state.player.y = height - state.player.h - 22; state.player.vx = 0; state.player.scale=1;
   }
   resetPlayer();
 
-  function bindPad(el,dir){
-    const down=(e)=>{ e.preventDefault(); if(dir<0) state.input.left=true; else state.input.right=true; };
-    const up=()=>{ if(dir<0) state.input.left=false; else state.input.right=false; };
-    el.addEventListener("pointerdown", down, {passive:false});
-    el.addEventListener("pointerup", up);
-    el.addEventListener("pointercancel", up);
-    el.addEventListener("pointerleave", up);
-  }
+  // Input
+  function bindPad(el,dir){ const down=(e)=>{ e.preventDefault(); if(dir<0) state.input.left=true; else state.input.right=true; };
+    const up=(e)=>{ if(dir<0) state.input.left=false; else state.input.right=false; };
+    el.addEventListener("pointerdown", down); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up); el.addEventListener("pointerleave", up); }
   bindPad(leftPad,-1); bindPad(rightPad,1);
 
   let swipeActive=false, swipeStartX=0;
@@ -510,19 +537,16 @@
     if(e.key==="ArrowRight"||e.key==="d") state.input.right=false;
   });
 
-  function onStart(){
+  // Force sign-in on Start
+  startBtn.addEventListener("pointerdown", e=>{
+    e.preventDefault();
     if (!window.firebase.auth.currentUser){
       document.getElementById("authModal").style.display = "flex";
       return;
     }
     startGame();
-  }
-  // robust handlers for iOS
-  window.__startBtn = onStart;            // used by inline onclick
-  startBtn.addEventListener("click", onStart, {passive:true});
-  startBtn.addEventListener("touchend", onStart, {passive:true});
-
-  pauseBtn.addEventListener("click", ()=>togglePause());
+  });
+  pauseBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); togglePause(); });
 
   function startGame(){
     state.blocks.length=0; state.bullets.length=0; state.powerups.length=0; state.coins.length=0;
@@ -618,7 +642,129 @@
     targetVX += state.input.swipeVX;
     p.vx += (targetVX - p.vx) * Math.min(1, dt*10);
     p.x += p.vx * dt;
-
     const pw = p.w * p.scale, ph = p.h * p.scale;
     if (p.x < 0) { p.x = 0; p.vx = Math.max(0, p.vx); }
-    if (p.x + pw > width) { p.x = width - pw; p
+    if (p.x + pw > width) { p.x = width - pw; p.vx = Math.min(0, p.vx); }
+
+    state.blockTimer -= worldDT;
+    const interval = Math.max(0.22, 0.9 - state.time*0.03);
+    if (state.blockTimer <= 0) { spawnBlock(); if (state.time > 12 && Math.random() < 0.35) spawnBlock(); state.blockTimer = interval; }
+
+    state.powTimer -= worldDT;
+    if (state.powTimer <= 0) { if (Math.random() < 0.35) spawnCoin(); else spawnPowerup(); state.powTimer = rand(8, 13); }
+
+    for (let i=state.blocks.length-1; i>=0; i--) {
+      const b = state.blocks[i]; b.y += b.vy * worldDT; if (b.y - b.h > height + 8) { state.blocks.splice(i,1); }
+    }
+
+    const magnet = state.effects.magnetUntil > state.time;
+    for (let i=state.powerups.length-1; i>=0; i--) {
+      const u = state.powerups[i];
+      if (magnet) {
+        const cx = (p.x + pw/2) - (u.x + u.w/2);
+        const cy = (p.y + ph/2) - (u.y + u.h/2);
+        const dist = Math.max(1, Math.hypot(cx, cy));
+        u.x += (cx/dist) * 220 * worldDT; u.y += (cy/dist) * 220 * worldDT;
+      } else { u.y += u.vy * worldDT; }
+      if (u.y - u.h > height + 8) { state.powerups.splice(i,1); continue; }
+      if (u.x < p.x + pw && u.x + u.w > p.x && u.y < p.y + ph && u.y + u.h > p.y) {
+        if (u.type === "blaster") { state.ammo += 6; ammoEl.textContent = state.ammo; }
+        else if (u.type === "shrink") { state.shrinkCharges += 1; shrinkCountEl.textContent = state.shrinkCharges; }
+        else if (u.type === "shield") { state.effects.shieldUntil = Math.max(state.effects.shieldUntil, state.time) + 6; }
+        else if (u.type === "slow")   { state.effects.slowUntil   = Math.max(state.effects.slowUntil,   state.time) + 6; }
+        else if (u.type === "magnet") { state.effects.magnetUntil = Math.max(state.effects.magnetUntil, state.time) + 8; }
+        else if (u.type === "life")   { state.lives += 1; livesEl.textContent = state.lives; }
+        state.powerups.splice(i,1);
+      }
+    }
+
+    // coins (pickup) — no manual UI bump; Firestore snapshot updates the chip
+    for (let i=state.coins.length-1; i>=0; i--) {
+      const c = state.coins[i]; c.y += c.vy * worldDT;
+      if (c.y - c.h > height + 8) { state.coins.splice(i,1); continue; }
+      if (c.x < p.x + pw && c.x + c.w > p.x && c.y < p.y + ph && c.y + c.h > p.y) {
+        state.coins.splice(i,1);
+        window.firebase.addCoins(1).catch(()=>{});
+      }
+    }
+
+    // bullets
+    for (let i=state.bullets.length-1; i>=0; i--) {
+      const bullet = state.bullets[i]; bullet.y += bullet.vy * dt;
+      if (bullet.y + bullet.h < -10) { state.bullets.splice(i,1); continue; }
+      for (let j=state.blocks.length-1; j>=0; j--) {
+        const b = state.blocks[j];
+        if (bullet.x < b.x + b.w && bullet.x + bullet.w > b.x && bullet.y < b.y + b.h && bullet.y + bullet.h > b.y) {
+          state.blocks.splice(j,1); state.bullets.splice(i,1); state.score += 5; break;
+        }
+      }
+    }
+
+    // block vs player
+    for (let i=state.blocks.length-1; i>=0; i--) {
+      const b = state.blocks[i];
+      const p2 = state.player, pw2 = p2.w*p2.scale, ph2 = p2.h*p2.scale;
+      if (b.x < p2.x + pw2 && b.x + b.w > p2.x && b.y < p2.y + ph2 && b.y + b.h > p2.y) {
+        if (state.player.invUntil > state.time) { state.blocks.splice(i,1); continue; }
+        const shieldActive = state.effects.shieldUntil > state.time;
+        if (shieldActive) { state.effects.shieldUntil = Math.max(state.time, state.effects.shieldUntil - 0.5); state.player.invUntil = state.time + 0.5; state.blocks.splice(i,1); continue; }
+        if (state.lives > 0) { state.lives--; livesEl.textContent = state.lives; state.player.invUntil = state.time + 1.2; state.blocks.splice(i,1); continue; }
+        gameOver(); return;
+      }
+    }
+  }
+
+  function draw(){
+    const g = ctx.createLinearGradient(0,0,0,height); g.addColorStop(0,"#0b1220"); g.addColorStop(1,"#0c0f14");
+    ctx.fillStyle = g; ctx.fillRect(0,0,width,height);
+    ctx.globalAlpha = 0.08; ctx.strokeStyle = "#8ab4ff"; ctx.lineWidth = 1;
+    const grid = Math.max(20, Math.floor(Math.min(width, height)*0.04));
+    ctx.beginPath(); for(let x=(width%grid); x<width; x+=grid){ ctx.moveTo(x,0); ctx.lineTo(x,height); }
+    for(let y=(height%grid); y<height; y+=grid){ ctx.moveTo(0,y); ctx.lineTo(width,y); } ctx.stroke(); ctx.globalAlpha = 1;
+
+    const p = state.player, pw = p.w*p.scale, ph = p.h*p.scale;
+
+    if (state.effects.shieldUntil > state.time) {
+      ctx.save(); ctx.globalAlpha = 0.25 + 0.15*Math.sin(state.time*8); ctx.fillStyle = "#4ade80";
+      roundRect(ctx, p.x-6, p.y-6, pw+12, ph+12, Math.min(16, pw*0.35), true); ctx.restore();
+    }
+    if (state.player.invUntil > state.time) { ctx.globalAlpha = 0.6 + 0.4*Math.sin(state.time*30); }
+    ctx.fillStyle = "#58a6ff"; roundRect(ctx, p.x, p.y, pw, ph, Math.min(10, pw*0.25), true); ctx.globalAlpha = 1;
+
+    for (const b of state.blocks) {
+      ctx.fillStyle = "#ff6b6b"; roundRect(ctx, b.x, b.y, b.w, b.h, Math.min(10, b.w*0.25), true);
+      ctx.globalAlpha = 0.15; ctx.fillStyle = "#ffffff"; roundRect(ctx, b.x+b.w*0.1, b.y+b.h*0.08, b.w*0.8, b.h*0.18, 8, true); ctx.globalAlpha = 1;
+    }
+
+    // coins
+    for (const c of state.coins) {
+      const r = c.w/2, cx = c.x + r, cy = c.y + r;
+      const grad = ctx.createRadialGradient(cx-r*0.4, cy-r*0.4, r*0.2, cx, cy, r);
+      grad.addColorStop(0, "#ffe38a"); grad.addColorStop(0.55, "#f5c240"); grad.addColorStop(1, "#c68a12");
+      ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,.25)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, r-1, 0, Math.PI*2); ctx.stroke();
+      ctx.save(); ctx.translate(cx,cy); ctx.fillStyle="rgba(0,0,0,.28)";
+      for (let i=0;i<16;i++){ const a=i*(Math.PI*2/16); ctx.beginPath(); ctx.arc(Math.cos(a)*(r-3), Math.sin(a)*(r-3), 1.8, 0, Math.PI*2); ctx.fill(); }
+      ctx.restore();
+      ctx.beginPath(); ctx.arc(cx, cy, r*0.55, 0, Math.PI*2); ctx.fillStyle="rgba(0,0,0,.15)"; ctx.fill();
+      ctx.fillStyle="#2b1900"; ctx.font=`${Math.max(10, r*0.9)}px system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("D", cx, cy+1);
+    }
+
+    // bullets
+    ctx.fillStyle = "#f8fafc";
+    for (const b of state.bullets) roundRect(ctx, b.x, b.y, b.w, b.h, 4, true);
+  }
+
+  function loop(now){
+    if (!state.running || state.paused || state.over) return;
+    const dt = Math.min(0.033, (now - state.last)/1000);
+    state.last = now;
+    update(dt); draw();
+    requestAnimationFrame(loop);
+  }
+
+  draw();
+})();
+</script>
+</body>
+</html>

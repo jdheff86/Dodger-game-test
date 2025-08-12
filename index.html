@@ -429,7 +429,16 @@
     lbModal.style.display="flex";
   });
   lbClose.addEventListener("pointerdown", e=>{ e.preventDefault(); lbModal.style.display="none"; });
-  function escapeHtml(x){ return (x||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m])); }
+  
+  function escapeHtml(x){
+  return (x||"").replace(/[&<>"']/g, m=>({
+    "&":"&amp;",
+    "<":"&lt;",
+    ">":"&gt;",      // ← this key must be ">"
+    "\"":"&quot;",
+    "'":"&#39;"
+  }[m]));
+}
 
   // Game state
   const state = {

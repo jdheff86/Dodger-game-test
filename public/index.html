@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum=1, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial=1, maximum=1, user-scalable=no" />
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Dodger — Leaderboard + Accounts + Power-Ups</title>
@@ -405,7 +405,7 @@
     // Height of controls + some breathing room; also respect abilities bar (bottom:110px)
     const controls = document.querySelector('.controls');
     const ch = controls ? controls.getBoundingClientRect().height : 0;
-    const pad = 28; // extra cushion
+    const pad = 56; // ⬅️ extra cushion (was 28) to keep player well above pads
     uiBottom = Math.max(110 + 40, ch + pad); // at least above abilities
   }
 
@@ -420,7 +420,7 @@
 
     // keep player perched above UI if game already initialized
     if (state) {
-      const floorY = height - uiBottom - (state.player.h * state.player.scale) - 10;
+      const floorY = height - uiBottom - (state.player.h * state.player.scale) - 18; // ⬅️ more clearance (was 10)
       state.player.y = Math.min(state.player.y, floorY);
     }
   }
@@ -452,20 +452,20 @@
   const shrinkCountEl = document.getElementById("shrinkCount");
 
   // Only block touch gestures on gameplay surfaces, not the whole document
-const stopTouch = (e) => e.preventDefault();
+  const stopTouch = (e) => e.preventDefault();
 
-['touchstart','touchmove','gesturestart'].forEach(ev => {
-  // canvas
-  canvas.addEventListener(ev, stopTouch, { passive:false });
+  ['touchstart','touchmove','gesturestart'].forEach(ev => {
+    // canvas
+    canvas.addEventListener(ev, stopTouch, { passive:false });
 
-  // on-screen control pads
-  const controlsEl = document.querySelector('.controls');
-  if (controlsEl) controlsEl.addEventListener(ev, stopTouch, { passive:false });
+    // on-screen control pads
+    const controlsEl = document.querySelector('.controls');
+    if (controlsEl) controlsEl.addEventListener(ev, stopTouch, { passive:false });
 
-  // ability bar
-  const abilitiesEl = document.getElementById('abilities');
-  if (abilitiesEl) abilitiesEl.addEventListener(ev, stopTouch, { passive:false });
-});
+    // ability bar
+    const abilitiesEl = document.getElementById('abilities');
+    if (abilitiesEl) abilitiesEl.addEventListener(ev, stopTouch, { passive:false });
+  });
 
   // Name modal
   nameBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); nameModal.style.display="flex"; });
@@ -522,6 +522,12 @@ const stopTouch = (e) => e.preventDefault();
     effects:{ shrinkUntil:0, shieldUntil:0, slowUntil:0, magnetUntil:0 },
     coins:[]
   };
+  const scoreEl = document.getElementById("score");
+  const bestEl  = document.getElementById("best");
+  const ammoEl  = document.getElementById("ammo");
+  const livesEl = document.getElementById("lives");
+  const shrinkCountEl = document.getElementById("shrinkCount");
+  const coinCountEl = document.getElementById("coinCount");
   bestEl.textContent = state.best; ammoEl.textContent = state.ammo; livesEl.textContent = state.lives; shrinkCountEl.textContent = state.shrinkCharges;
 
   function resetPlayer(){
@@ -529,7 +535,7 @@ const stopTouch = (e) => e.preventDefault();
     state.player.w = base; state.player.h = base;
     const pw = state.player.w * state.player.scale;
     const ph = state.player.h * state.player.scale;
-    const floorY = height - uiBottom - ph - 10; // keep above controls & shrink bar
+    const floorY = height - uiBottom - ph - 18; // ⬅️ was 10
     state.player.x = (width - pw)/2;
     state.player.y = floorY;
     state.player.vx = 0; state.player.scale=1;
@@ -537,6 +543,10 @@ const stopTouch = (e) => e.preventDefault();
   resetPlayer();
 
   // Input
+  const leftPad = document.getElementById("leftPad");
+  const rightPad= document.getElementById("rightPad");
+  const firePad = document.getElementById("firePad");
+  const shrinkBtn = document.getElementById("shrinkBtn");
   function bindPad(el,dir){ const down=(e)=>{ e.preventDefault(); if(dir<0) state.input.left=true; else state.input.right=true; };
     const up=(e)=>{ if(dir<0) state.input.left=false; else state.input.right=false; };
     el.addEventListener("pointerdown", down); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up); el.addEventListener("pointerleave", up); }
@@ -562,6 +572,10 @@ const stopTouch = (e) => e.preventDefault();
   });
 
   // Force sign-in on Start
+  const pauseBtn= document.getElementById("pauseBtn");
+  const overlay = document.getElementById("overlay");
+  const startBtn= document.getElementById("startBtn");
+
   startBtn.addEventListener("pointerdown", e=>{
     e.preventDefault();
     if (!window.firebase.auth.currentUser){
@@ -675,7 +689,7 @@ const stopTouch = (e) => e.preventDefault();
     const pw = p.w * p.scale, ph = p.h * p.scale;
     if (p.x < 0) { p.x = 0; p.vx = Math.max(0, p.vx); }
     if (p.x + pw > width) { p.x = width - pw; p.vx = Math.min(0, p.vx); }
-    const floorY = height - uiBottom - ph - 10;
+    const floorY = height - uiBottom - ph - 18; // ⬅️ was 10
     p.y = floorY;
 
     state.blockTimer -= worldDT;

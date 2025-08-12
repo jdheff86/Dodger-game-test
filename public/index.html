@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -453,20 +452,12 @@
   const shrinkCountEl = document.getElementById("shrinkCount");
 
   // Only block touch gestures on gameplay surfaces, not the whole document
-const stopTouch = (e) => e.preventDefault();
-
-['touchstart','touchmove','gesturestart'].forEach(ev => {
-  // canvas
-  canvas.addEventListener(ev, stopTouch, { passive:false });
-
-  // on-screen control pads
-  const controlsEl = document.querySelector('.controls');
-  if (controlsEl) controlsEl.addEventListener(ev, stopTouch, { passive:false });
-
-  // ability bar
-  const abilitiesEl = document.getElementById('abilities');
-  if (abilitiesEl) abilitiesEl.addEventListener(ev, stopTouch, { passive:false });
-});
+  const stopTouch = (e) => e.preventDefault();
+  ['touchstart','touchmove','gesturestart'].forEach(ev => {
+    canvas.addEventListener(ev, stopTouch, { passive:false });
+    document.querySelector('.controls')?.addEventListener(ev, stopTouch, { passive:false });
+    document.getElementById('abilities')?.addEventListener(ev, stopTouch, { passive:false });
+  });
 
   // Name modal
   nameBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); nameModal.style.display="flex"; });
@@ -772,7 +763,7 @@ const stopTouch = (e) => e.preventDefault();
       ctx.globalAlpha = 0.15; ctx.fillStyle = "#ffffff"; roundRect(ctx, b.x+b.w*0.1, b.y+b.h*0.08, b.w*0.8, b.h*0.18, 8, true); ctx.globalAlpha = 1;
     }
 
-    // power-ups (now drawn!)
+    // power-ups
     for (const u of state.powerups) {
       const r = Math.min(u.w, u.h);
       let bg="#ffd166", label="🔫";

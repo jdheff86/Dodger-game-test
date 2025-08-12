@@ -227,20 +227,25 @@
   const auth = getAuth(app);
   const db   = getFirestore(app);
 
+  // keep sessions across refresh (helps iOS Safari)
   setPersistence(auth, browserLocalPersistence).catch(()=>{});
 
   // ── Helpers exposed to game code
   let walletUnsub = null;
 
+  // ✅ Make sure every function you need is actually on window.firebase
   window.firebase = {
     auth, db,
+
     onUser(cb){ return onAuthStateChanged(auth, cb); },
+
     async ensureWallet(uid){
       const ref = doc(db, "wallets", uid);
       const s = await getDoc(ref);
       if (!s.exists()) await setDoc(ref, { coins:0 });
       return ref;
     },
+
     async watchWallet(uid, onCoins){
       if (walletUnsub) { walletUnsub(); walletUnsub = null; }
       if (!uid) { onCoins?.(0); return; }
@@ -250,12 +255,14 @@
         onCoins?.(coins);
       });
     },
+
     async setDisplayName(name){
       if (!auth.currentUser) return;
       const clean = String(name||"Player").trim().slice(0,24);
       await updateProfile(auth.currentUser, { displayName: clean });
       return clean;
     },
+
     async saveScore(score){
       if (!auth.currentUser) return { ok:false, error:"Not signed in" };
       try{
@@ -268,6 +275,7 @@
         return { ok:true };
       }catch(e){ return { ok:false, error:e.message }; }
     },
+
     async addCoins(n){
       const u = auth.currentUser;
       if (!u) throw new Error("Not signed in");
@@ -275,8 +283,8 @@
       await updateDoc(ref, { coins: increment(n|0) });
     },
 
-    /* ✅ Top N scores for leaderboard (no composite index needed) */
-    loadTop: async function (n = 20) {
+    // ✅ Leaderboard: fetch top N by score (single field sort = no composite index required)
+    async loadTop(n = 20){
       const qy = query(
         collection(db, "scores"),
         orderBy("score", "desc"),
@@ -287,12 +295,15 @@
         const data = d.data() || {};
         return {
           name: data.name || "Player",
-          score: Number(data.score) || 0,
+          score: Number(data.score)||0,
           ts: data.ts || null
         };
       });
     }
   };
+
+  // (…keep the rest of your script exactly as-is…)
+</script>
 
   function prettyAuthError(err){
     const code = (err && err.code) || "";

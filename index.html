@@ -817,43 +817,30 @@
   draw();
 })();
 </script>
+<!-- iOS Debug Console -->
+<script src="https://cdn.jsdelivr.net/npm/eruda"></script>
 <script>
-(function() {
-  const debugDiv = document.createElement('div');
-  debugDiv.id = 'debugConsole';
-  debugDiv.style.position = 'fixed';
-  debugDiv.style.bottom = '0';
-  debugDiv.style.left = '0';
-  debugDiv.style.width = '100%';
-  debugDiv.style.maxHeight = '40%';
-  debugDiv.style.overflowY = 'auto';
-  debugDiv.style.background = 'rgba(0,0,0,0.85)';
-  debugDiv.style.color = '#0f0';
-  debugDiv.style.fontSize = '12px';
-  debugDiv.style.padding = '5px';
-  debugDiv.style.zIndex = '99999';
-  debugDiv.style.fontFamily = 'monospace';
-  document.body.appendChild(debugDiv);
+  (function () {
+    // Wait until Eruda is loaded, then init
+    function initConsole() {
+      if (typeof eruda !== 'undefined') {
+        eruda.init();
+        console.log('%c[DEBUG] Eruda console loaded successfully!', 'color: lime; font-weight: bold;');
+      } else {
+        console.error('[DEBUG] Eruda failed to load.');
+      }
+    }
 
-  function logToDiv(type, args) {
-    const msg = document.createElement('div');
-    msg.textContent = `[${type}] ` + args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ');
-    debugDiv.appendChild(msg);
-    debugDiv.scrollTop = debugDiv.scrollHeight;
-  }
-
-  ['log','error','warn'].forEach(type => {
-    const orig = console[type];
-    console[type] = function(...args) {
-      orig.apply(console, args);
-      logToDiv(type, args);
-    };
-  });
-
-  window.onerror = function(message, source, lineno, colno, error) {
-    logToDiv('ERROR', [message, `at ${source}:${lineno}:${colno}`]);
-  };
-})();
+    // Load Eruda and then run init
+    if (!window.eruda) {
+      var script = document.createElement('script');
+      script.src = "https://cdn.jsdelivr.net/npm/eruda";
+      script.onload = initConsole;
+      document.body.appendChild(script);
+    } else {
+      initConsole();
+    }
+  })();
 </script>
 </body>
 </html>

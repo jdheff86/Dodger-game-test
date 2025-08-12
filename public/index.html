@@ -451,8 +451,21 @@
   const shrinkBtn = document.getElementById("shrinkBtn");
   const shrinkCountEl = document.getElementById("shrinkCount");
 
-  const prevent=(e)=>{ if (e.target.closest(".overlay") || e.target.closest(".modal")) return; e.preventDefault(); };
-  ["touchstart","touchmove","touchend","gesturestart"].forEach(ev=>document.addEventListener(ev, prevent, { passive:false }));
+  // Only block touch gestures on gameplay surfaces, not the whole document
+const stopTouch = (e) => e.preventDefault();
+
+['touchstart','touchmove','gesturestart'].forEach(ev => {
+  // canvas
+  canvas.addEventListener(ev, stopTouch, { passive:false });
+
+  // on-screen control pads
+  const controlsEl = document.querySelector('.controls');
+  if (controlsEl) controlsEl.addEventListener(ev, stopTouch, { passive:false });
+
+  // ability bar
+  const abilitiesEl = document.getElementById('abilities');
+  if (abilitiesEl) abilitiesEl.addEventListener(ev, stopTouch, { passive:false });
+});
 
   // Name modal
   nameBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); nameModal.style.display="flex"; });

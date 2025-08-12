@@ -276,23 +276,23 @@
     },
 
     /* ✅ Top N scores for leaderboard */
-    async loadTop(n = 20){
-      const qy = query(
-        collection(db, "scores"),
-        orderBy("score", "desc"),
-        orderBy("ts", "desc"),
-        limit(n)
-      );
-      const snap = await getDocs(qy);
-      return snap.docs.map(d => {
-        const data = d.data() || {};
-        return {
-          name: data.name || "Player",
-          score: Number(data.score)||0,
-          ts: data.ts || null
-        };
-      });
-    }
+    // Top N scores for leaderboard (no composite index needed)
+async function loadTop(n = 20) {
+  const qy = query(
+    collection(db, "scores"),
+    orderBy("score", "desc"), // single field sort
+    limit(n)
+  );
+  const snap = await getDocs(qy);
+  return snap.docs.map(d => {
+    const data = d.data() || {};
+    return {
+      name: data.name || "Player",
+      score: Number(data.score) || 0,
+      ts: data.ts || null
+    };
+  });
+}
   };
 
   function prettyAuthError(err){

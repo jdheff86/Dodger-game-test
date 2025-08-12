@@ -17,7 +17,7 @@
   canvas { display:block; width:100%; height:100%; }
   .safe { padding-top: env(safe-area-inset-top); }
 
-  /* HUD: compact two rows, fixed-height, scaleable */
+  /* HUD */
   header { position:absolute; top:0; left:0; right:0; z-index:8; display:flex; flex-direction:column; padding:8px 10px; gap:6px; pointer-events:none; }
   #hud { --s:0.82; }
   .topbar,.toolbar{ display:flex; align-items:center; justify-content:space-between; gap:calc(8px*var(--s)); height:calc(44px*var(--s)); flex-wrap:nowrap; }
@@ -33,16 +33,26 @@
   #coinChip{ display:flex; align-items:center; gap:calc(6px*var(--s)); background:rgba(255,213,95,.12); border-color:rgba(255,213,95,.35); }
   #coinChip svg{ width:calc(18px*var(--s)); height:calc(18px*var(--s)); flex:0 0 auto; }
 
-  /* Controls / overlay / modals (unchanged) */
+  /* Controls / overlay / modals */
   .controls{ position:absolute; left:0; right:0; bottom:0; z-index:6; display:flex; justify-content:space-between; gap:12px; padding:14px; pointer-events:none; }
   .pad{ flex:1; min-height:92px; border-radius:16px; pointer-events:auto; background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.03)); border:1px solid rgba(255,255,255,.1); display:flex; align-items:center; justify-content:center; }
   .pad span{ font-size:28px; filter:drop-shadow(0 2px 0 rgba(0,0,0,.35)); }
-  .pad.fire{ flex:0.9; }
+  .pad.fire{ flex:0.9; position:relative; }
+
+  /* FIRE pad content */
+  .fireInner{ display:flex; align-items:center; gap:8px; }
+  .fireLabel{ font-weight:800; letter-spacing:0.3px; }
+  .ammoBadge{
+    min-width:2.1em; text-align:center; font-variant-numeric:tabular-nums;
+    padding:4px 8px; border-radius:999px; background:rgba(88,166,255,.18);
+    border:1px solid rgba(88,166,255,.35);
+  }
+
   #abilities{ position:absolute; left:0; right:0; bottom:110px; display:flex; justify-content:center; z-index:6; pointer-events:none; }
   #shrinkBtn{ pointer-events:auto; display:flex; align-items:center; gap:8px; }
   #shrinkCount{ min-width:1.6em; text-align:center; }
 
-  .overlay{ position:absolute; inset:0; z-index:7; display:flex; align-items:center; justify-content:center;
+  .overlay{ position:absolute; inset:0; z-index:10; display:flex; align-items:center; justify-content:center;
     background:radial-gradient(1200px 800px at 50% 40%, rgba(88,166,255,.12), rgba(12,15,20,.92) 60%); text-align:center; padding:24px; }
   .card{ max-width:560px; width:92%; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); border-radius:18px; padding:18px; backdrop-filter:blur(10px); }
   .title{ font-size:26px; font-weight:800; margin:4px 0 10px; }
@@ -59,18 +69,23 @@
   .btn2.primary{ background:var(--accent); color:#0b1220; border-color:transparent; }
   .x{ position:absolute; top:10px; right:12px; background:transparent; border:none; color:var(--muted); font-size:22px; }
   .small { font-size:12px; color:var(--muted); text-decoration:underline; background:none; border:none; padding:0; }
+
+  /* ⬇️ Leaderboard table layout/spacing */
+  #lbTable{ width:100%; border-collapse:separate; border-spacing:0; }
+  #lbTable th,#lbTable td{ padding:8px 10px; }
+  #lbTable td:nth-child(1){ width:32px; color:var(--muted); }
+  #lbTable td:nth-child(3){ width:90px; text-align:right; }
+  #lbTable td:nth-child(4){ width:96px; color:var(--muted); }
 </style>
 </head>
 <body class="safe">
 <canvas id="game" aria-label="Dodger game area"></canvas>
 
 <header class="safe" id="hud">
-  <!-- Row 1: HUD + Signed in (right) -->
   <div class="topbar">
     <div class="left">
       <div class="hud"><strong>Score:</strong><span id="score">0</span></div>
       <div class="hud"><strong>Best:</strong><span id="best">0</span></div>
-      <div class="hud"><strong>Ammo:</strong><span id="ammo" class="ammo">0</span></div>
       <div class="hud"><strong>Lives:</strong><span id="lives" class="ammo">0</span></div>
     </div>
     <div class="right">
@@ -78,7 +93,6 @@
     </div>
   </div>
 
-  <!-- Row 2: coins + buttons -->
   <div class="toolbar">
     <div class="left">
       <div id="coinChip" title="Coins">
@@ -114,7 +128,12 @@
 <!-- Controls -->
 <div class="controls">
   <div class="pad" id="leftPad"><span>⟵</span></div>
-  <div class="pad fire" id="firePad"><span>🔫 FIRE</span></div>
+  <div class="pad fire" id="firePad" aria-label="Fire">
+    <div class="fireInner">
+      <span class="fireLabel">FIRE</span>
+      <span id="ammo" class="ammoBadge">0</span>
+    </div>
+  </div>
   <div class="pad" id="rightPad"><span>⟶</span></div>
 </div>
 
@@ -162,7 +181,6 @@
     <h2>Account</h2>
     <div id="authMsg" class="muted" style="margin-bottom:8px;"></div>
     <div class="grid">
-      <!-- hardened inputs -->
       <input id="authEmail" type="email" placeholder="Email"
              autocapitalize="none" autocomplete="username"
              inputmode="email" spellcheck="false">
@@ -209,7 +227,6 @@
   const auth = getAuth(app);
   const db   = getFirestore(app);
 
-  // keep sessions across refresh (helps iOS Safari)
   setPersistence(auth, browserLocalPersistence).catch(()=>{});
 
   // ── Helpers exposed to game code
@@ -255,11 +272,28 @@
       const u = auth.currentUser;
       if (!u) throw new Error("Not signed in");
       const ref = await window.firebase.ensureWallet(u.uid);
-      await updateDoc(ref, { coins: increment(n|0) }); // await so it actually persists
+      await updateDoc(ref, { coins: increment(n|0) });
+    },
+
+    // Top N scores (single-field order to avoid composite index requirement)
+    async loadTop(n = 20){
+      const qy = query(
+        collection(db, "scores"),
+        orderBy("score", "desc"),
+        limit(n)
+      );
+      const snap = await getDocs(qy);
+      return snap.docs.map(d => {
+        const data = d.data() || {};
+        return {
+          name: data.name || "Player",
+          score: Number(data.score)||0,
+          ts: data.ts || null
+        };
+      });
     }
   };
 
-  // Pretty error helper
   function prettyAuthError(err){
     const code = (err && err.code) || "";
     if (code.includes("invalid-credential")) return "Email or password is incorrect.";
@@ -316,7 +350,7 @@
   authBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); openModal(authModal); });
   authClose.addEventListener("pointerdown", e=>{ e.preventDefault(); closeModal(authModal); });
 
-  // Sign in / Sign up with trimmed email
+  // Sign in / Sign up
   btnIn.addEventListener("pointerdown", async e=>{
     e.preventDefault(); authMsg.textContent = "";
     try{
@@ -341,7 +375,7 @@
     e.preventDefault(); await signOut(auth); closeModal(authModal);
   });
 
-  // 🔁 Reset password
+  // Password reset
   btnForgot.addEventListener("pointerdown", async e=>{
     e.preventDefault();
     const email = (authEmail.value || "").trim();
@@ -363,14 +397,45 @@
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d", { alpha:false, desynchronized:true });
 
+  // --- Declare state BEFORE fit() ever runs ---
+  const state = {
+    running:false, paused:false, over:false,
+    score:0, best:Number(localStorage.getItem("dodger_best")||0),
+    time:0, last:performance.now(),
+    player:{ x:0, y:0, w:48, h:48, speed:420, vx:0, scale:1, invUntil:0 },
+    blocks:[], blockTimer:0, difficulty:1,
+    input:{ left:false, right:false, swipeVX:0 },
+    bullets:[],
+    ammo:0, lives:0, shrinkCharges:0,
+    powerups:[], powTimer:2.5,
+    effects:{ shrinkUntil:0, shieldUntil:0, slowUntil:0, magnetUntil:0 },
+    coins:[]
+  };
+
+  // --- Keep player above bottom UI ---
   let width=0, height=0, dpr=Math.max(1, window.devicePixelRatio||1);
+  let uiBottom = 140; // will be measured
+
+  function measureUIBottom(){
+    const controls = document.querySelector('.controls');
+    const ch = controls ? controls.getBoundingClientRect().height : 0;
+    const pad = 28;
+    uiBottom = Math.max(110 + 40, ch + pad);
+  }
+
   function fit(){
+    measureUIBottom();
     width=Math.max(320,Math.floor(window.innerWidth||document.documentElement.clientWidth));
     height=Math.max(480,Math.floor(window.innerHeight||document.documentElement.clientHeight));
     dpr=Math.max(1, window.devicePixelRatio||1);
     canvas.width=Math.floor(width*dpr); canvas.height=Math.floor(height*dpr);
     canvas.style.width=width+"px"; canvas.style.height=height+"px";
     ctx.setTransform(dpr,0,0,dpr,0,0);
+
+    // keep player perched above UI if game already initialized
+    const p = state.player;
+    const floorY = height - uiBottom - (p.h * p.scale) - 10;
+    state.player.y = Math.min(state.player.y, floorY);
   }
   fit(); window.addEventListener("resize", fit);
 
@@ -399,8 +464,21 @@
   const shrinkBtn = document.getElementById("shrinkBtn");
   const shrinkCountEl = document.getElementById("shrinkCount");
 
-  const prevent=(e)=>{ if (e.target.closest(".overlay") || e.target.closest(".modal")) return; e.preventDefault(); };
-  ["touchstart","touchmove","touchend","gesturestart"].forEach(ev=>document.addEventListener(ev, prevent, { passive:false }));
+  // Show best/ammo/lives initially
+  bestEl.textContent = state.best; ammoEl.textContent = state.ammo; livesEl.textContent = state.lives; shrinkCountEl.textContent = state.shrinkCharges;
+
+  // Only block touch gestures on gameplay surfaces, not the whole document
+  const stopTouch = (e) => e.preventDefault();
+  ['touchstart','touchmove','gesturestart'].forEach(ev => {
+    // canvas
+    canvas.addEventListener(ev, stopTouch, { passive:false });
+    // on-screen control pads
+    const controlsEl = document.querySelector('.controls');
+    if (controlsEl) controlsEl.addEventListener(ev, stopTouch, { passive:false });
+    // ability bar
+    const abilitiesEl = document.getElementById('abilities');
+    if (abilitiesEl) abilitiesEl.addEventListener(ev, stopTouch, { passive:false });
+  });
 
   // Name modal
   nameBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); nameModal.style.display="flex"; });
@@ -418,48 +496,49 @@
     lbBody.innerHTML = "<tr><td colspan='4'>Loading…</td></tr>";
     try{
       const rows = await window.firebase.loadTop(20);
-      if (!rows.length) { lbBody.innerHTML = "<tr><td colspan='4'>No scores yet.</td></tr>"; }
-      else {
-        let i=1; lbBody.innerHTML = rows.map(r=>{
-          const when = r.ts?.toDate ? r.ts.toDate() : new Date();
-          return `<tr><td>${i++}</td><td>${escapeHtml(r.name||"Player")}</td><td style="text-align:right">${r.score|0}</td><td>${when.toLocaleDateString()}</td></tr>`;
+      if (!rows.length) {
+        lbBody.innerHTML = "<tr><td colspan='4'>No scores yet.</td></tr>";
+      } else {
+        let i=1;
+        lbBody.innerHTML = rows.map(r=>{
+          const whenDate = r.ts?.toDate ? r.ts.toDate() : null;
+          const whenTxt = (whenDate instanceof Date && !isNaN(whenDate))
+              ? whenDate.toLocaleDateString(undefined,{month:'short', day:'2-digit'})
+              : "";
+          return `<tr>
+            <td>${i++}</td>
+            <td>${escapeHtml(r.name||"Player")}</td>
+            <td style="text-align:right">${(r.score|0)}</td>
+            <td>${whenTxt}</td>
+          </tr>`;
         }).join("");
       }
-    }catch(err){ lbBody.innerHTML = `<tr><td colspan="4">Error: ${escapeHtml(err.message||String(err))}</td></tr>`; }
+    }catch(err){
+      lbBody.innerHTML = `<tr><td colspan="4">Error: ${escapeHtml(err.message||String(err))}</td></tr>`;
+    }
     lbModal.style.display="flex";
   });
   lbClose.addEventListener("pointerdown", e=>{ e.preventDefault(); lbModal.style.display="none"; });
-  
-  function escapeHtml(x){
-  return (x||"").replace(/[&<>"']/g, m=>({
-    "&":"&amp;",
-    "<":"&lt;",
-    ">":"&gt;",      // ← this key must be ">"
-    "\"":"&quot;",
-    "'":"&#39;"
-  }[m]));
-}
 
-  // Game state
-  const state = {
-    running:false, paused:false, over:false,
-    score:0, best:Number(localStorage.getItem("dodger_best")||0),
-    time:0, last:performance.now(),
-    player:{ x:0, y:0, w:48, h:48, speed:420, vx:0, scale:1, invUntil:0 },
-    blocks:[], blockTimer:0, difficulty:1,
-    input:{ left:false, right:false, swipeVX:0 },
-    bullets:[],
-    ammo:0, lives:0, shrinkCharges:0,
-    powerups:[], powTimer:2.5,
-    effects:{ shrinkUntil:0, shieldUntil:0, slowUntil:0, magnetUntil:0 },
-    coins:[]
-  };
-  bestEl.textContent = state.best; ammoEl.textContent = state.ammo; livesEl.textContent = state.lives; shrinkCountEl.textContent = state.shrinkCharges;
+  function escapeHtml(x){
+    return (x||"").replace(/[&<>"']/g, m=>({
+      "&":"&amp;",
+      "<":"&lt;",
+      ">":"&gt;",
+      "\"":"&quot;",
+      "'":"&#39;"
+    }[m]));
+  }
 
   function resetPlayer(){
     const base = Math.max(36, Math.min(56, Math.floor(Math.min(width,height)*0.06)));
     state.player.w = base; state.player.h = base;
-    state.player.x = (width - state.player.w)/2; state.player.y = height - state.player.h - 22; state.player.vx = 0; state.player.scale=1;
+    const pw = state.player.w * state.player.scale;
+    const ph = state.player.h * state.player.scale;
+    const floorY = height - uiBottom - ph - 10; // keep above controls & shrink bar
+    state.player.x = (width - pw)/2;
+    state.player.y = floorY;
+    state.player.vx = 0; state.player.scale=1;
   }
   resetPlayer();
 
@@ -559,7 +638,7 @@
     state.powerups.push({ type, x, y:-size, w:size, h:size, vy });
   }
   function spawnCoin(){
-    const size = Math.floor(Math.max(18, state.player.w * 0.70)); // stable physical size
+    const size = Math.floor(Math.max(18, state.player.w * 0.70));
     const x = rand(0, width - size);
     const vy = rand(80, 120);
     const t0 = state.time;
@@ -597,9 +676,13 @@
     targetVX += state.input.swipeVX;
     p.vx += (targetVX - p.vx) * Math.min(1, dt*10);
     p.x += p.vx * dt;
+
+    // clamp horizontal & keep player on the "floor" above UI
     const pw = p.w * p.scale, ph = p.h * p.scale;
     if (p.x < 0) { p.x = 0; p.vx = Math.max(0, p.vx); }
     if (p.x + pw > width) { p.x = width - pw; p.vx = Math.min(0, p.vx); }
+    const floorY = height - uiBottom - ph - 10;
+    p.y = floorY;
 
     state.blockTimer -= worldDT;
     const interval = Math.max(0.22, 0.9 - state.time*0.03);
@@ -639,9 +722,8 @@
       if (c.y - c.h > height + 8) { state.coins.splice(i,1); continue; }
       if (c.x < p.x + pw && c.x + c.w > p.x && c.y < p.y + ph && c.y + c.h > p.y) {
         state.coins.splice(i,1);
-        // optimistic UI update; DB is truth via onSnapshot
         coinCountEl.textContent = String((Number(coinCountEl.textContent)||0) + 1);
-        window.firebase.addCoins(1).catch(()=>{/* ignore; snapshot will correct if failed */});
+        window.firebase.addCoins(1).catch(()=>{});
       }
     }
 
@@ -681,6 +763,7 @@
 
     const p = state.player, pw = p.w*p.scale, ph = p.h*p.scale;
 
+    // player + effects
     if (state.effects.shieldUntil > state.time) {
       ctx.save(); ctx.globalAlpha = 0.25 + 0.15*Math.sin(state.time*8); ctx.fillStyle = "#4ade80";
       roundRect(ctx, p.x-6, p.y-6, pw+12, ph+12, Math.min(16, pw*0.35), true); ctx.restore();
@@ -692,6 +775,23 @@
     for (const b of state.blocks) {
       ctx.fillStyle = "#ff6b6b"; roundRect(ctx, b.x, b.y, b.w, b.h, Math.min(10, b.w*0.25), true);
       ctx.globalAlpha = 0.15; ctx.fillStyle = "#ffffff"; roundRect(ctx, b.x+b.w*0.1, b.y+b.h*0.08, b.w*0.8, b.h*0.18, 8, true); ctx.globalAlpha = 1;
+    }
+
+    // power-ups
+    for (const u of state.powerups) {
+      const r = Math.min(u.w, u.h);
+      let bg="#ffd166", label="🔫";
+      if (u.type==="shrink"){ bg="#60a5fa"; label="✂"; }
+      else if (u.type==="shield"){ bg="#4ade80"; label="🛡"; }
+      else if (u.type==="slow"){ bg="#a78bfa"; label="🐌"; }
+      else if (u.type==="magnet"){ bg="#f472b6"; label="🧲"; }
+      else if (u.type==="life"){ bg="#ef4444"; label="❤️"; }
+      ctx.fillStyle = bg;
+      roundRect(ctx, u.x, u.y, u.w, u.h, Math.min(10, r*0.25), true);
+      ctx.font = `${Math.floor(r*0.7)}px system-ui,apple color emoji,Segoe UI Emoji,Emoji`;
+      ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillStyle = "rgba(0,0,0,0.85)";
+      ctx.fillText(label, u.x + u.w/2, u.y + u.h/2 + 1);
     }
 
     // coins

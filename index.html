@@ -817,5 +817,43 @@
   draw();
 })();
 </script>
+<script>
+(function() {
+  const debugDiv = document.createElement('div');
+  debugDiv.id = 'debugConsole';
+  debugDiv.style.position = 'fixed';
+  debugDiv.style.bottom = '0';
+  debugDiv.style.left = '0';
+  debugDiv.style.width = '100%';
+  debugDiv.style.maxHeight = '40%';
+  debugDiv.style.overflowY = 'auto';
+  debugDiv.style.background = 'rgba(0,0,0,0.85)';
+  debugDiv.style.color = '#0f0';
+  debugDiv.style.fontSize = '12px';
+  debugDiv.style.padding = '5px';
+  debugDiv.style.zIndex = '99999';
+  debugDiv.style.fontFamily = 'monospace';
+  document.body.appendChild(debugDiv);
+
+  function logToDiv(type, args) {
+    const msg = document.createElement('div');
+    msg.textContent = `[${type}] ` + args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ');
+    debugDiv.appendChild(msg);
+    debugDiv.scrollTop = debugDiv.scrollHeight;
+  }
+
+  ['log','error','warn'].forEach(type => {
+    const orig = console[type];
+    console[type] = function(...args) {
+      orig.apply(console, args);
+      logToDiv(type, args);
+    };
+  });
+
+  window.onerror = function(message, source, lineno, colno, error) {
+    logToDiv('ERROR', [message, `at ${source}:${lineno}:${colno}`]);
+  };
+})();
+</script>
 </body>
 </html>

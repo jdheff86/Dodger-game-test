@@ -13,11 +13,8 @@
   html, body { margin:0; height:100%; background:var(--bg); color:var(--fg);
     font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased; -webkit-tap-highlight-color:transparent; }
-  body { overflow:hidden; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
-
-  /* Block browser gestures only on gameplay surfaces (not the whole page) */
-  canvas, .controls, #abilities { touch-action:none; }
-
+  /* allow taps to generate click on iOS */
+  body { overflow:hidden; touch-action:manipulation; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
   canvas { display:block; width:100%; height:100%; }
   .safe { padding-top: env(safe-area-inset-top); }
 
@@ -46,22 +43,24 @@
   /* FIRE pad content */
   .fireInner{ display:flex; align-items:center; gap:8px; }
   .fireLabel{ font-weight:800; letter-spacing:0.3px; }
-  .ammoBadge{ min-width:2.1em; text-align:center; font-variant-numeric:tabular-nums; padding:4px 8px; border-radius:999px; background:rgba(88,166,255,.18); border:1px solid rgba(88,166,255,.35); }
+  .ammoBadge{
+    min-width:2.1em; text-align:center; font-variant-numeric:tabular-nums;
+    padding:4px 8px; border-radius:999px; background:rgba(88,166,255,.18);
+    border:1px solid rgba(88,166,255,.35);
+  }
 
   #abilities{ position:absolute; left:0; right:0; bottom:110px; display:flex; justify-content:center; z-index:6; pointer-events:none; }
   #shrinkBtn{ pointer-events:auto; display:flex; align-items:center; gap:8px; }
   #shrinkCount{ min-width:1.6em; text-align:center; }
 
-  /* Overlay above everything; fully tappable */
-  .overlay{ position:absolute; inset:0; z-index:20; display:flex; align-items:center; justify-content:center;
+  .overlay{ position:absolute; inset:0; z-index:7; display:flex; align-items:center; justify-content:center;
     background:radial-gradient(1200px 800px at 50% 40%, rgba(88,166,255,.12), rgba(12,15,20,.92) 60%); text-align:center; padding:24px; }
   .card{ max-width:560px; width:92%; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); border-radius:18px; padding:18px; backdrop-filter:blur(10px); }
   .title{ font-size:26px; font-weight:800; margin:4px 0 10px; }
   .subtitle{ color:var(--muted); margin-bottom:14px; }
-  .go{ margin-top:12px; width:100%; padding:12px 14px; font-weight:800; font-size:18px; border-radius:14px; border:none; color:#0b1220; background:var(--accent); touch-action:manipulation; }
+  .go{ margin-top:12px; width:100%; padding:12px 14px; font-weight:800; font-size:18px; border-radius:14px; border:none; color:#0b1220; background:var(--accent); }
   .muted{ color:var(--muted); font-size:13px; }
-
-  .modal{ position:absolute; inset:0; z-index:30; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); padding:18px; }
+  .modal{ position:absolute; inset:0; z-index:12; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); padding:18px; }
   .panel{ width:min(520px,92%); background:#121826; border:1px solid rgba(255,255,255,.12); border-radius:16px; padding:16px; position:relative; }
   .panel h2{ margin:4px 0 12px; font-size:20px; }
   .grid{ display:grid; gap:10px; }
@@ -144,7 +143,7 @@
   <div class="card">
     <div class="title">DODGER</div>
     <div class="subtitle" id="startSub">Avoid blocks. Power-ups: 🔫 Blaster, ✂ Shrink, 🛡 Shield, 🐌 Slow, 🧲 Magnet, ❤️ Life.</div>
-    <button class="go" id="startBtn" type="button">Start</button>
+    <button class="go" id="startBtn">Start</button>
     <div class="muted">Tip: Add to Home Screen on iPhone for full-screen play.</div>
   </div>
 </div>
@@ -168,7 +167,7 @@
   <div class="panel">
     <button class="x" id="lbClose">×</button>
     <h2>Global Leaderboard (Top 20)</h2>
-    <table id="lbTable">
+    <table id="lbTable" style="width:100%; border-collapse:collapse;">
       <thead><tr><th style="text-align:left;">#</th><th style="text-align:left;">Name</th><th>Score</th><th>When</th></tr></thead>
       <tbody></tbody>
     </table>
@@ -183,8 +182,11 @@
     <h2>Account</h2>
     <div id="authMsg" class="muted" style="margin-bottom:8px;"></div>
     <div class="grid">
-      <input id="authEmail" type="email" placeholder="Email" autocapitalize="none" autocomplete="username" inputmode="email" spellcheck="false">
-      <input id="authPass" type="password" placeholder="Password (min 6)" autocomplete="current-password">
+      <input id="authEmail" type="email" placeholder="Email"
+             autocapitalize="none" autocomplete="username"
+             inputmode="email" spellcheck="false">
+      <input id="authPass" type="password" placeholder="Password (min 6)"
+             autocomplete="current-password">
     </div>
     <div class="actions">
       <button class="btn2" id="authSignin">Sign in</button>
@@ -203,7 +205,8 @@
   import {
     getAuth, onAuthStateChanged,
     signInWithEmailAndPassword, createUserWithEmailAndPassword,
-    updateProfile, signOut, browserLocalPersistence, setPersistence,
+    updateProfile, signOut,
+    browserLocalPersistence, setPersistence,
     sendPasswordResetEmail
   } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
   import {
@@ -272,12 +275,22 @@
       const ref = await window.firebase.ensureWallet(u.uid);
       await updateDoc(ref, { coins: increment(n|0) });
     },
+
+    // Top N scores (single-field order to avoid composite index requirement)
     async loadTop(n = 20){
-      const qy = query(collection(db, "scores"), orderBy("score", "desc"), limit(n));
+      const qy = query(
+        collection(db, "scores"),
+        orderBy("score", "desc"),
+        limit(n)
+      );
       const snap = await getDocs(qy);
       return snap.docs.map(d => {
         const data = d.data() || {};
-        return { name: data.name || "Player", score: Number(data.score)||0, ts: data.ts || null };
+        return {
+          name: data.name || "Player",
+          score: Number(data.score)||0,
+          ts: data.ts || null
+        };
       });
     }
   };
@@ -309,9 +322,6 @@
   const startBtn = document.getElementById("startBtn");
   const startSub = document.getElementById("startSub");
 
-  function openModal(m){ m.style.display="flex"; }
-  function closeModal(m){ m.style.display="none"; }
-
   onAuthStateChanged(auth, async (u)=>{
     if (!u){
       userChip.textContent = "Not signed in";
@@ -328,17 +338,22 @@
     startBtn.textContent = "Start";
   });
 
-  authBtn.addEventListener("click", (e)=>{ e.preventDefault(); openModal(authModal); });
-  authClose.addEventListener("click", (e)=>{ e.preventDefault(); closeModal(authModal); });
+  function openModal(m){ m.style.display="flex"; }
+  function closeModal(m){ m.style.display="none"; }
+
   document.querySelectorAll(".modal").forEach(m=>{
-    m.addEventListener("click", (e)=>{ if(e.target === m) closeModal(m); });
+    m.addEventListener("pointerdown", (e)=>{ if(e.target === m) closeModal(m); }, {passive:true});
   });
   document.addEventListener("keydown", (e)=>{
     if (e.key === "Escape") document.querySelectorAll(".modal").forEach(m=>{ if(m.style.display==="flex") closeModal(m); });
   });
 
-  btnIn.addEventListener("click", async e=>{
-    e.preventDefault(); authMsg.textContent = "";
+  authBtn.addEventListener("click", ()=>openModal(authModal));
+  authClose.addEventListener("click", ()=>closeModal(authModal));
+
+  // Sign in / Sign up
+  btnIn.addEventListener("click", async ()=>{
+    authMsg.textContent = "";
     try{
       const email = (authEmail.value || "").trim();
       const pass  = authPass.value || "";
@@ -346,8 +361,8 @@
       closeModal(authModal);
     }catch(err){ authMsg.textContent = prettyAuthError(err); }
   });
-  btnUp.addEventListener("click", async e=>{
-    e.preventDefault(); authMsg.textContent = "";
+  btnUp.addEventListener("click", async ()=>{
+    authMsg.textContent = "";
     try{
       const email = (authEmail.value || "").trim();
       const pass  = authPass.value || "";
@@ -357,11 +372,10 @@
       closeModal(authModal);
     }catch(err){ authMsg.textContent = prettyAuthError(err); }
   });
-  btnOut.addEventListener("click", async e=>{
-    e.preventDefault(); await signOut(auth); closeModal(authModal);
-  });
-  btnForgot.addEventListener("click", async e=>{
-    e.preventDefault();
+  btnOut.addEventListener("click", async ()=>{ await signOut(auth); closeModal(authModal); });
+
+  // Password reset
+  btnForgot.addEventListener("click", async ()=>{
     const email = (authEmail.value || "").trim();
     if (!email) { authMsg.textContent = "Enter your email first, then tap Reset."; return; }
     try{
@@ -369,18 +383,14 @@
       authMsg.textContent = "Password reset email sent. Check your inbox.";
     }catch(err){ authMsg.textContent = prettyAuthError(err); }
   });
-</script>
 
-<!-- ===== Game code ===== -->
-<script>
-(function () {
-  "use strict";
-
+  // ===== Game code =====
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d", { alpha:false, desynchronized:true });
 
+  // --- Keep player above bottom UI ---
   let width=0, height=0, dpr=Math.max(1, window.devicePixelRatio||1);
-  let uiBottom = 140; // keep player above bottom UI
+  let uiBottom = 140; // will be measured
 
   function measureUIBottom(){
     const controls = document.querySelector('.controls');
@@ -397,6 +407,7 @@
     canvas.width=Math.floor(width*dpr); canvas.height=Math.floor(height*dpr);
     canvas.style.width=width+"px"; canvas.style.height=height+"px";
     ctx.setTransform(dpr,0,0,dpr,0,0);
+
     if (state) {
       const floorY = height - uiBottom - (state.player.h * state.player.scale) - 10;
       state.player.y = Math.min(state.player.y, floorY);
@@ -410,9 +421,7 @@
   const ammoEl  = document.getElementById("ammo");
   const livesEl = document.getElementById("lives");
   const coinCountEl = document.getElementById("coinCount");
-  const startBtn= document.getElementById("startBtn");
   const pauseBtn= document.getElementById("pauseBtn");
-  const overlay = document.getElementById("overlay");
   const leftPad = document.getElementById("leftPad");
   const rightPad= document.getElementById("rightPad");
   const firePad = document.getElementById("firePad");
@@ -428,22 +437,19 @@
   const lbBody = document.querySelector("#lbTable tbody");
   const shrinkBtn = document.getElementById("shrinkBtn");
   const shrinkCountEl = document.getElementById("shrinkCount");
-
-  /* DO NOT block touches globally anymore */
+  const overlay = document.getElementById("overlay");
 
   // Name modal
-  nameBtn.addEventListener("click", e=>{ e.preventDefault(); nameModal.style.display="flex"; });
-  [nameClose,cancelName].forEach(el=>el.addEventListener("click", e=>{ e.preventDefault(); nameModal.style.display="none"; }));
-  saveName.addEventListener("click", async e=>{
-    e.preventDefault();
+  nameBtn.addEventListener("click", ()=>{ nameModal.style.display="flex"; });
+  [nameClose,cancelName].forEach(el=>el.addEventListener("click", ()=>{ nameModal.style.display="none"; }));
+  saveName.addEventListener("click", async ()=>{
     const dn = await window.firebase?.setDisplayName?.(nameInput.value||"Player");
     if (dn) { const uc=document.getElementById("userChip"); uc.textContent = `Signed in: ${dn}`; }
     nameModal.style.display="none";
   });
 
   // Leaderboard modal
-  lbBtn.addEventListener("click", async e=>{
-    e.preventDefault();
+  lbBtn.addEventListener("click", async ()=>{
     lbBody.innerHTML = "<tr><td colspan='4'>Loading…</td></tr>";
     try{
       const rows = await window.firebase.loadTop(20);
@@ -469,8 +475,8 @@
     }
     lbModal.style.display="flex";
   });
-  lbClose.addEventListener("click", e=>{ e.preventDefault(); lbModal.style.display="none"; });
-  function escapeHtml(x){ return (x||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m])); }
+  lbClose.addEventListener("click", ()=>{ lbModal.style.display="none"; });
+  function escapeHtml(x){ return (x||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;","&gt;":"&gt;","\"":"&quot;","'":"&#39;" }[m])); }
 
   // Game state
   const state = {
@@ -500,12 +506,14 @@
   }
   resetPlayer();
 
-  // Input (pads use pointer events)
+  // Input
   function bindPad(el,dir){
     const down=(e)=>{ e.preventDefault(); if(dir<0) state.input.left=true; else state.input.right=true; };
-    const up=(e)=>{ if(dir<0) state.input.left=false; else state.input.right=false; };
-    el.addEventListener("pointerdown", down); el.addEventListener("pointerup", up);
-    el.addEventListener("pointercancel", up); el.addEventListener("pointerleave", up);
+    const up=()=>{ if(dir<0) state.input.left=false; else state.input.right=false; };
+    el.addEventListener("pointerdown", down, {passive:false});
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
+    el.addEventListener("pointerleave", up);
   }
   bindPad(leftPad,-1); bindPad(rightPad,1);
 
@@ -515,7 +523,7 @@
   window.addEventListener("pointerup", ()=>{ swipeActive=false; state.input.swipeVX=0; });
 
   firePad.addEventListener("pointerdown", e=>{ e.preventDefault(); shoot(); });
-  shrinkBtn.addEventListener("click", e=>{ e.preventDefault(); useShrink(); });
+  shrinkBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); useShrink(); });
 
   window.addEventListener("keydown", e=>{
     if(e.key==="ArrowLeft"||e.key==="a") state.input.left=true;
@@ -528,19 +536,18 @@
     if(e.key==="ArrowRight"||e.key==="d") state.input.right=false;
   });
 
-  // Safer start handler: works even if firebase hasn't initialized yet
-  function currentUser(){
-    return (window.firebase && window.firebase.auth && window.firebase.auth.currentUser) || null;
-  }
+  // Start / Sign in (use click & touchend; do NOT preventDefault)
   function onStart(){
-    const u = currentUser();
-    if (!u){ document.getElementById("authModal").style.display = "flex"; return; }
+    if (!window.firebase.auth.currentUser){
+      document.getElementById("authModal").style.display = "flex";
+      return;
+    }
     startGame();
   }
-  startBtn.addEventListener("click", onStart);
-  startBtn.addEventListener("pointerup", onStart);
+  startBtn.addEventListener("click", onStart, {passive:true});
+  startBtn.addEventListener("touchend", onStart, {passive:true});
 
-  pauseBtn.addEventListener("click", e=>{ e.preventDefault(); togglePause(); });
+  pauseBtn.addEventListener("click", ()=>togglePause());
 
   function startGame(){
     state.blocks.length=0; state.bullets.length=0; state.powerups.length=0; state.coins.length=0;
@@ -574,11 +581,13 @@
       ctx.font="700 20px system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif"; ctx.textAlign="center"; ctx.fillText("Paused", width/2, height*0.45); ctx.restore(); }
   }
 
+  // Helpers
   function rand(min,max){ return Math.random()*(max-min)+min; }
   function roundRect(ctx,x,y,w,h,r,fill){ ctx.beginPath(); const rr=Math.min(r,w/2,h/2);
     ctx.moveTo(x+rr,y); ctx.arcTo(x+w,y, x+w,y+h, rr); ctx.arcTo(x+w,y+h, x,y+h, rr);
     ctx.arcTo(x,y+h, x,y, rr); ctx.arcTo(x,y, x+w,y, rr); ctx.closePath(); if(fill) ctx.fill(); }
 
+  // Spawners
   function spawnBlock(){
     const size = rand(Math.max(22,width*0.03), Math.max(38,width*0.07));
     const x = rand(0, width - size);
@@ -607,6 +616,7 @@
     state.coins.push({ x, y:-size, w:size, h:size, vy, t0 });
   }
 
+  // Actions
   function shoot(){
     if (state.ammo <= 0 || state.over || !state.running) return;
     state.ammo--; ammoEl.textContent = state.ammo;
@@ -619,6 +629,7 @@
     state.effects.shrinkUntil = Math.max(state.effects.shrinkUntil, state.time) + 6;
   }
 
+  // Update & draw
   function update(dt){
     state.time += dt;
     state.score += dt*10;
@@ -637,6 +648,7 @@
     p.vx += (targetVX - p.vx) * Math.min(1, dt*10);
     p.x += p.vx * dt;
 
+    // clamp horizontal & keep player on the "floor" above UI
     const pw = p.w * p.scale, ph = p.h * p.scale;
     if (p.x < 0) { p.x = 0; p.vx = Math.max(0, p.vx); }
     if (p.x + pw > width) { p.x = width - pw; p.vx = Math.min(0, p.vx); }
@@ -734,6 +746,23 @@
       ctx.globalAlpha = 0.15; ctx.fillStyle = "#ffffff"; roundRect(ctx, b.x+b.w*0.1, b.y+b.h*0.08, b.w*0.8, b.h*0.18, 8, true); ctx.globalAlpha = 1;
     }
 
+    // power-ups
+    for (const u of state.powerups) {
+      const r = Math.min(u.w, u.h);
+      let bg="#ffd166", label="🔫";
+      if (u.type==="shrink"){ bg="#60a5fa"; label="✂"; }
+      else if (u.type==="shield"){ bg="#4ade80"; label="🛡"; }
+      else if (u.type==="slow"){ bg="#a78bfa"; label="🐌"; }
+      else if (u.type==="magnet"){ bg="#f472b6"; label="🧲"; }
+      else if (u.type==="life"){ bg="#ef4444"; label="❤️"; }
+      ctx.fillStyle = bg;
+      roundRect(ctx, u.x, u.y, u.w, u.h, Math.min(10, r*0.25), true);
+      ctx.font = `${Math.floor(r*0.7)}px system-ui,apple color emoji,Segoe UI Emoji,Emoji`;
+      ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillStyle = "rgba(0,0,0,0.85)";
+      ctx.fillText(label, u.x + u.w/2, u.y + u.h/2 + 1);
+    }
+
     // coins
     for (const c of state.coins) {
       const r = c.w/2, cx = c.x + r, cy = c.y + r;
@@ -762,7 +791,6 @@
   }
 
   draw();
-})();
 </script>
 </body>
 </html>

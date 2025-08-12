@@ -842,5 +842,43 @@
     }
   })();
 </script>
+<!-- Simple On-Page Debug Console -->
+<style>
+  #debugLog {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-height: 150px;
+    overflow-y: auto;
+    background: rgba(0,0,0,0.85);
+    color: #0f0;
+    font-family: monospace;
+    font-size: 12px;
+    padding: 5px;
+    z-index: 99999;
+  }
+</style>
+<div id="debugLog"></div>
+<script>
+  (function(){
+    const logDiv = document.getElementById('debugLog');
+    function addLog(type, args) {
+      const msg = document.createElement('div');
+      msg.textContent = `[${type.toUpperCase()}] ` + Array.from(args).join(' ');
+      msg.style.color = type === 'error' ? 'red' : '#0f0';
+      logDiv.appendChild(msg);
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+    ['log','error'].forEach(fn => {
+      const orig = console[fn];
+      console[fn] = function() {
+        addLog(fn, arguments);
+        orig.apply(console, arguments);
+      };
+    });
+    console.log("✅ Debug console ready.");
+  })();
+</script>
 </body>
 </html>

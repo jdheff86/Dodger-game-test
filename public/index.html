@@ -33,11 +33,20 @@
   #coinChip{ display:flex; align-items:center; gap:calc(6px*var(--s)); background:rgba(255,213,95,.12); border-color:rgba(255,213,95,.35); }
   #coinChip svg{ width:calc(18px*var(--s)); height:calc(18px*var(--s)); flex:0 0 auto; }
 
-  /* Controls / overlay / modals (unchanged) */
+  /* Controls / overlay / modals */
   .controls{ position:absolute; left:0; right:0; bottom:0; z-index:6; display:flex; justify-content:space-between; gap:12px; padding:14px; pointer-events:none; }
   .pad{ flex:1; min-height:92px; border-radius:16px; pointer-events:auto; background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.03)); border:1px solid rgba(255,255,255,.1); display:flex; align-items:center; justify-content:center; }
   .pad span{ font-size:28px; filter:drop-shadow(0 2px 0 rgba(0,0,0,.35)); }
-  .pad.fire{ flex:0.9; }
+  .pad.fire{ flex:0.9; position:relative; }
+  /* FIRE pad content */
+  .fireInner{ display:flex; align-items:center; gap:8px; }
+  .fireLabel{ font-weight:800; letter-spacing:0.3px; }
+  .ammoBadge{
+    min-width:2.1em; text-align:center; font-variant-numeric:tabular-nums;
+    padding:4px 8px; border-radius:999px; background:rgba(88,166,255,.18);
+    border:1px solid rgba(88,166,255,.35);
+  }
+
   #abilities{ position:absolute; left:0; right:0; bottom:110px; display:flex; justify-content:center; z-index:6; pointer-events:none; }
   #shrinkBtn{ pointer-events:auto; display:flex; align-items:center; gap:8px; }
   #shrinkCount{ min-width:1.6em; text-align:center; }
@@ -70,7 +79,7 @@
     <div class="left">
       <div class="hud"><strong>Score:</strong><span id="score">0</span></div>
       <div class="hud"><strong>Best:</strong><span id="best">0</span></div>
-      <div class="hud"><strong>Ammo:</strong><span id="ammo" class="ammo">0</span></div>
+      <!-- Ammo removed from here -->
       <div class="hud"><strong>Lives:</strong><span id="lives" class="ammo">0</span></div>
     </div>
     <div class="right">
@@ -114,7 +123,12 @@
 <!-- Controls -->
 <div class="controls">
   <div class="pad" id="leftPad"><span>⟵</span></div>
-  <div class="pad fire" id="firePad"><span>🔫 FIRE</span></div>
+  <div class="pad fire" id="firePad" aria-label="Fire">
+    <div class="fireInner">
+      <span class="fireLabel">FIRE</span>
+      <span id="ammo" class="ammoBadge">0</span>
+    </div>
+  </div>
   <div class="pad" id="rightPad"><span>⟶</span></div>
 </div>
 
@@ -377,7 +391,7 @@
   // UI refs
   const scoreEl = document.getElementById("score");
   const bestEl  = document.getElementById("best");
-  const ammoEl  = document.getElementById("ammo");
+  const ammoEl  = document.getElementById("ammo");       // now inside FIRE pad
   const livesEl = document.getElementById("lives");
   const coinCountEl = document.getElementById("coinCount");
   const startBtn= document.getElementById("startBtn");
@@ -630,9 +644,8 @@
       if (c.y - c.h > height + 8) { state.coins.splice(i,1); continue; }
       if (c.x < p.x + pw && c.x + c.w > p.x && c.y < p.y + ph && c.y + c.h > p.y) {
         state.coins.splice(i,1);
-        // optimistic UI update; DB is truth via onSnapshot
         coinCountEl.textContent = String((Number(coinCountEl.textContent)||0) + 1);
-        window.firebase.addCoins(1).catch(()=>{/* ignore; snapshot will correct if failed */});
+        window.firebase.addCoins(1).catch(()=>{});
       }
     }
 

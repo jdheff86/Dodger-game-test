@@ -275,24 +275,23 @@
       await updateDoc(ref, { coins: increment(n|0) });
     },
 
-    /* ✅ Top N scores for leaderboard */
-    // Top N scores for leaderboard (no composite index needed)
-async function loadTop(n = 20) {
-  const qy = query(
-    collection(db, "scores"),
-    orderBy("score", "desc"), // single field sort
-    limit(n)
-  );
-  const snap = await getDocs(qy);
-  return snap.docs.map(d => {
-    const data = d.data() || {};
-    return {
-      name: data.name || "Player",
-      score: Number(data.score) || 0,
-      ts: data.ts || null
-    };
-  });
-}
+    /* ✅ Top N scores for leaderboard (no composite index needed) */
+    loadTop: async function (n = 20) {
+      const qy = query(
+        collection(db, "scores"),
+        orderBy("score", "desc"),
+        limit(n)
+      );
+      const snap = await getDocs(qy);
+      return snap.docs.map(d => {
+        const data = d.data() || {};
+        return {
+          name: data.name || "Player",
+          score: Number(data.score) || 0,
+          ts: data.ts || null
+        };
+      });
+    }
   };
 
   function prettyAuthError(err){
@@ -737,7 +736,11 @@ async function loadTop(n = 20) {
       for (let i=0;i<16;i++){ const a=i*(Math.PI*2/16); ctx.beginPath(); ctx.arc(Math.cos(a)*(r-3), Math.sin(a)*(r-3), 1.8, 0, Math.PI*2); ctx.fill(); }
       ctx.restore();
       ctx.beginPath(); ctx.arc(cx, cy, r*0.55, 0, Math.PI*2); ctx.fillStyle="rgba(0,0,0,.15)"; ctx.fill();
-      ctx.fillStyle="#2b1900"; ctx.font=`${Math.max(10, r*0.9)}px system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("D", cx, cy+1);
+
+      ctx.fillStyle="#2b1900";
+      ctx.font=`${Math.max(10, r*0.9)}px system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial`;
+      ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillText("D", cx, cy+1);
     }
 
     // bullets

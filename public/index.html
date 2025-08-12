@@ -17,7 +17,7 @@
   canvas { display:block; width:100%; height:100%; }
   .safe { padding-top: env(safe-area-inset-top); }
 
-  /* HUD: compact two rows, fixed-height, scaleable */
+  /* HUD */
   header { position:absolute; top:0; left:0; right:0; z-index:8; display:flex; flex-direction:column; padding:8px 10px; gap:6px; pointer-events:none; }
   #hud { --s:0.82; }
   .topbar,.toolbar{ display:flex; align-items:center; justify-content:space-between; gap:calc(8px*var(--s)); height:calc(44px*var(--s)); flex-wrap:nowrap; }
@@ -38,6 +38,7 @@
   .pad{ flex:1; min-height:92px; border-radius:16px; pointer-events:auto; background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.03)); border:1px solid rgba(255,255,255,.1); display:flex; align-items:center; justify-content:center; }
   .pad span{ font-size:28px; filter:drop-shadow(0 2px 0 rgba(0,0,0,.35)); }
   .pad.fire{ flex:0.9; position:relative; }
+
   /* FIRE pad content */
   .fireInner{ display:flex; align-items:center; gap:8px; }
   .fireLabel{ font-weight:800; letter-spacing:0.3px; }
@@ -74,12 +75,10 @@
 <canvas id="game" aria-label="Dodger game area"></canvas>
 
 <header class="safe" id="hud">
-  <!-- Row 1: HUD + Signed in (right) -->
   <div class="topbar">
     <div class="left">
       <div class="hud"><strong>Score:</strong><span id="score">0</span></div>
       <div class="hud"><strong>Best:</strong><span id="best">0</span></div>
-      <!-- Ammo removed from here -->
       <div class="hud"><strong>Lives:</strong><span id="lives" class="ammo">0</span></div>
     </div>
     <div class="right">
@@ -87,7 +86,6 @@
     </div>
   </div>
 
-  <!-- Row 2: coins + buttons -->
   <div class="toolbar">
     <div class="left">
       <div id="coinChip" title="Coins">
@@ -176,7 +174,6 @@
     <h2>Account</h2>
     <div id="authMsg" class="muted" style="margin-bottom:8px;"></div>
     <div class="grid">
-      <!-- hardened inputs -->
       <input id="authEmail" type="email" placeholder="Email"
              autocapitalize="none" autocomplete="username"
              inputmode="email" spellcheck="false">
@@ -269,11 +266,29 @@
       const u = auth.currentUser;
       if (!u) throw new Error("Not signed in");
       const ref = await window.firebase.ensureWallet(u.uid);
-      await updateDoc(ref, { coins: increment(n|0) }); // await so it actually persists
+      await updateDoc(ref, { coins: increment(n|0) });
+    },
+
+    // ✅ NEW: fetch top N scores for leaderboard
+    async loadTop(n = 20){
+      const q = query(
+        collection(db, "scores"),
+        orderBy("score", "desc"),
+        orderBy("ts", "desc"),
+        limit(n)
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map(d => {
+        const data = d.data() || {};
+        return {
+          name: data.name || "Player",
+          score: Number(data.score)||0,
+          ts: data.ts || null
+        };
+      });
     }
   };
 
-  // Pretty error helper
   function prettyAuthError(err){
     const code = (err && err.code) || "";
     if (code.includes("invalid-credential")) return "Email or password is incorrect.";
@@ -330,7 +345,7 @@
   authBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); openModal(authModal); });
   authClose.addEventListener("pointerdown", e=>{ e.preventDefault(); closeModal(authModal); });
 
-  // Sign in / Sign up with trimmed email
+  // Sign in / Sign up
   btnIn.addEventListener("pointerdown", async e=>{
     e.preventDefault(); authMsg.textContent = "";
     try{
@@ -355,7 +370,7 @@
     e.preventDefault(); await signOut(auth); closeModal(authModal);
   });
 
-  // 🔁 Reset password
+  // Password reset
   btnForgot.addEventListener("pointerdown", async e=>{
     e.preventDefault();
     const email = (authEmail.value || "").trim();
@@ -391,7 +406,7 @@
   // UI refs
   const scoreEl = document.getElementById("score");
   const bestEl  = document.getElementById("best");
-  const ammoEl  = document.getElementById("ammo");       // now inside FIRE pad
+  const ammoEl  = document.getElementById("ammo");
   const livesEl = document.getElementById("lives");
   const coinCountEl = document.getElementById("coinCount");
   const startBtn= document.getElementById("startBtn");
@@ -564,7 +579,7 @@
     state.powerups.push({ type, x, y:-size, w:size, h:size, vy });
   }
   function spawnCoin(){
-    const size = Math.floor(Math.max(18, state.player.w * 0.70)); // stable physical size
+    const size = Math.floor(Math.max(18, state.player.w * 0.70));
     const x = rand(0, width - size);
     const vy = rand(80, 120);
     const t0 = state.time;
@@ -692,7 +707,6 @@
     if (state.player.invUntil > state.time) { ctx.globalAlpha = 0.6 + 0.4*Math.sin(state.time*30); }
     ctx.fillStyle = "#58a6ff"; roundRect(ctx, p.x, p.y, pw, ph, Math.min(10, pw*0.25), true); ctx.globalAlpha = 1;
 
-    // blocks
     for (const b of state.blocks) {
       ctx.fillStyle = "#ff6b6b"; roundRect(ctx, b.x, b.y, b.w, b.h, Math.min(10, b.w*0.25), true);
       ctx.globalAlpha = 0.15; ctx.fillStyle = "#ffffff"; roundRect(ctx, b.x+b.w*0.1, b.y+b.h*0.08, b.w*0.8, b.h*0.18, 8, true); ctx.globalAlpha = 1;

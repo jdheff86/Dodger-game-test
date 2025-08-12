@@ -13,7 +13,7 @@
   html, body { margin:0; height:100%; background:var(--bg); color:var(--fg);
     font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased; -webkit-tap-highlight-color:transparent; }
-  /* allow taps to generate click on iOS */
+  /* allow taps to generate clicks on iOS */
   body { overflow:hidden; touch-action:manipulation; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
   canvas { display:block; width:100%; height:100%; }
   .safe { padding-top: env(safe-area-inset-top); }
@@ -43,22 +43,18 @@
   /* FIRE pad content */
   .fireInner{ display:flex; align-items:center; gap:8px; }
   .fireLabel{ font-weight:800; letter-spacing:0.3px; }
-  .ammoBadge{
-    min-width:2.1em; text-align:center; font-variant-numeric:tabular-nums;
-    padding:4px 8px; border-radius:999px; background:rgba(88,166,255,.18);
-    border:1px solid rgba(88,166,255,.35);
-  }
+  .ammoBadge{ min-width:2.1em; text-align:center; font-variant-numeric:tabular-nums; padding:4px 8px; border-radius:999px; background:rgba(88,166,255,.18); border:1px solid rgba(88,166,255,.35); }
 
   #abilities{ position:absolute; left:0; right:0; bottom:110px; display:flex; justify-content:center; z-index:6; pointer-events:none; }
   #shrinkBtn{ pointer-events:auto; display:flex; align-items:center; gap:8px; }
   #shrinkCount{ min-width:1.6em; text-align:center; }
 
   .overlay{ position:absolute; inset:0; z-index:7; display:flex; align-items:center; justify-content:center;
-    background:radial-gradient(1200px 800px at 50% 40%, rgba(88,166,255,.12), rgba(12,15,20,.92) 60%); text-align:center; padding:24px; }
-  .card{ max-width:560px; width:92%; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); border-radius:18px; padding:18px; backdrop-filter:blur(10px); }
+    background:radial-gradient(1200px 800px at 50% 40%, rgba(88,166,255,.12), rgba(12,15,20,.92) 60%); text-align:center; padding:24px; pointer-events:auto; }
+  .card{ max-width:560px; width:92%; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); border-radius:18px; padding:18px; backdrop-filter:blur(10px); pointer-events:auto; }
   .title{ font-size:26px; font-weight:800; margin:4px 0 10px; }
   .subtitle{ color:var(--muted); margin-bottom:14px; }
-  .go{ margin-top:12px; width:100%; padding:12px 14px; font-weight:800; font-size:18px; border-radius:14px; border:none; color:#0b1220; background:var(--accent); }
+  .go{ margin-top:12px; width:100%; padding:12px 14px; font-weight:800; font-size:18px; border-radius:14px; border:none; color:#0b1220; background:var(--accent); pointer-events:auto; }
   .muted{ color:var(--muted); font-size:13px; }
   .modal{ position:absolute; inset:0; z-index:12; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); padding:18px; }
   .panel{ width:min(520px,92%); background:#121826; border:1px solid rgba(255,255,255,.12); border-radius:16px; padding:16px; position:relative; }
@@ -143,7 +139,8 @@
   <div class="card">
     <div class="title">DODGER</div>
     <div class="subtitle" id="startSub">Avoid blocks. Power-ups: 🔫 Blaster, ✂ Shrink, 🛡 Shield, 🐌 Slow, 🧲 Magnet, ❤️ Life.</div>
-    <button class="go" id="startBtn">Start</button>
+    <!-- inline onclick as a final safety net on iOS -->
+    <button class="go" id="startBtn" onclick="window.__startBtn && window.__startBtn()">Start</button>
     <div class="muted">Tip: Add to Home Screen on iPhone for full-screen play.</div>
   </div>
 </div>
@@ -182,11 +179,8 @@
     <h2>Account</h2>
     <div id="authMsg" class="muted" style="margin-bottom:8px;"></div>
     <div class="grid">
-      <input id="authEmail" type="email" placeholder="Email"
-             autocapitalize="none" autocomplete="username"
-             inputmode="email" spellcheck="false">
-      <input id="authPass" type="password" placeholder="Password (min 6)"
-             autocomplete="current-password">
+      <input id="authEmail" type="email" placeholder="Email" autocapitalize="none" autocomplete="username" inputmode="email" spellcheck="false">
+      <input id="authPass" type="password" placeholder="Password (min 6)" autocomplete="current-password">
     </div>
     <div class="actions">
       <button class="btn2" id="authSignin">Sign in</button>
@@ -199,7 +193,7 @@
   </div>
 </div>
 
-<!-- ===== Firebase (Auth + Firestore) ===== -->
+<!-- ===== Firebase (Auth + Firestore) + Game ===== -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
   import {
@@ -230,7 +224,6 @@
 
   setPersistence(auth, browserLocalPersistence).catch(()=>{});
 
-  // ── Helpers exposed to game code
   let walletUnsub = null;
 
   window.firebase = {
@@ -275,22 +268,12 @@
       const ref = await window.firebase.ensureWallet(u.uid);
       await updateDoc(ref, { coins: increment(n|0) });
     },
-
-    // Top N scores (single-field order to avoid composite index requirement)
     async loadTop(n = 20){
-      const qy = query(
-        collection(db, "scores"),
-        orderBy("score", "desc"),
-        limit(n)
-      );
+      const qy = query(collection(db,"scores"), orderBy("score","desc"), limit(n));
       const snap = await getDocs(qy);
       return snap.docs.map(d => {
         const data = d.data() || {};
-        return {
-          name: data.name || "Player",
-          score: Number(data.score)||0,
-          ts: data.ts || null
-        };
+        return { name:data.name||"Player", score:Number(data.score)||0, ts:data.ts||null };
       });
     }
   };
@@ -351,7 +334,6 @@
   authBtn.addEventListener("click", ()=>openModal(authModal));
   authClose.addEventListener("click", ()=>closeModal(authModal));
 
-  // Sign in / Sign up
   btnIn.addEventListener("click", async ()=>{
     authMsg.textContent = "";
     try{
@@ -373,8 +355,6 @@
     }catch(err){ authMsg.textContent = prettyAuthError(err); }
   });
   btnOut.addEventListener("click", async ()=>{ await signOut(auth); closeModal(authModal); });
-
-  // Password reset
   btnForgot.addEventListener("click", async ()=>{
     const email = (authEmail.value || "").trim();
     if (!email) { authMsg.textContent = "Enter your email first, then tap Reset."; return; }
@@ -384,13 +364,13 @@
     }catch(err){ authMsg.textContent = prettyAuthError(err); }
   });
 
-  // ===== Game code =====
+  /* ===== Game code ===== */
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d", { alpha:false, desynchronized:true });
 
   // --- Keep player above bottom UI ---
   let width=0, height=0, dpr=Math.max(1, window.devicePixelRatio||1);
-  let uiBottom = 140; // will be measured
+  let uiBottom = 140;
 
   function measureUIBottom(){
     const controls = document.querySelector('.controls');
@@ -415,12 +395,10 @@
   }
   fit(); window.addEventListener("resize", fit);
 
-  // UI refs
   const scoreEl = document.getElementById("score");
   const bestEl  = document.getElementById("best");
   const ammoEl  = document.getElementById("ammo");
   const livesEl = document.getElementById("lives");
-  const coinCountEl = document.getElementById("coinCount");
   const pauseBtn= document.getElementById("pauseBtn");
   const leftPad = document.getElementById("leftPad");
   const rightPad= document.getElementById("rightPad");
@@ -439,7 +417,6 @@
   const shrinkCountEl = document.getElementById("shrinkCount");
   const overlay = document.getElementById("overlay");
 
-  // Name modal
   nameBtn.addEventListener("click", ()=>{ nameModal.style.display="flex"; });
   [nameClose,cancelName].forEach(el=>el.addEventListener("click", ()=>{ nameModal.style.display="none"; }));
   saveName.addEventListener("click", async ()=>{
@@ -448,7 +425,6 @@
     nameModal.style.display="none";
   });
 
-  // Leaderboard modal
   lbBtn.addEventListener("click", async ()=>{
     lbBody.innerHTML = "<tr><td colspan='4'>Loading…</td></tr>";
     try{
@@ -478,7 +454,6 @@
   lbClose.addEventListener("click", ()=>{ lbModal.style.display="none"; });
   function escapeHtml(x){ return (x||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;","&gt;":"&gt;","\"":"&quot;","'":"&#39;" }[m])); }
 
-  // Game state
   const state = {
     running:false, paused:false, over:false,
     score:0, best:Number(localStorage.getItem("dodger_best")||0),
@@ -506,7 +481,6 @@
   }
   resetPlayer();
 
-  // Input
   function bindPad(el,dir){
     const down=(e)=>{ e.preventDefault(); if(dir<0) state.input.left=true; else state.input.right=true; };
     const up=()=>{ if(dir<0) state.input.left=false; else state.input.right=false; };
@@ -536,7 +510,6 @@
     if(e.key==="ArrowRight"||e.key==="d") state.input.right=false;
   });
 
-  // Start / Sign in (use click & touchend; do NOT preventDefault)
   function onStart(){
     if (!window.firebase.auth.currentUser){
       document.getElementById("authModal").style.display = "flex";
@@ -544,6 +517,8 @@
     }
     startGame();
   }
+  // robust handlers for iOS
+  window.__startBtn = onStart;            // used by inline onclick
   startBtn.addEventListener("click", onStart, {passive:true});
   startBtn.addEventListener("touchend", onStart, {passive:true});
 
@@ -581,13 +556,11 @@
       ctx.font="700 20px system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif"; ctx.textAlign="center"; ctx.fillText("Paused", width/2, height*0.45); ctx.restore(); }
   }
 
-  // Helpers
   function rand(min,max){ return Math.random()*(max-min)+min; }
   function roundRect(ctx,x,y,w,h,r,fill){ ctx.beginPath(); const rr=Math.min(r,w/2,h/2);
     ctx.moveTo(x+rr,y); ctx.arcTo(x+w,y, x+w,y+h, rr); ctx.arcTo(x+w,y+h, x,y+h, rr);
     ctx.arcTo(x,y+h, x,y, rr); ctx.arcTo(x,y, x+w,y, rr); ctx.closePath(); if(fill) ctx.fill(); }
 
-  // Spawners
   function spawnBlock(){
     const size = rand(Math.max(22,width*0.03), Math.max(38,width*0.07));
     const x = rand(0, width - size);
@@ -616,7 +589,6 @@
     state.coins.push({ x, y:-size, w:size, h:size, vy, t0 });
   }
 
-  // Actions
   function shoot(){
     if (state.ammo <= 0 || state.over || !state.running) return;
     state.ammo--; ammoEl.textContent = state.ammo;
@@ -629,7 +601,6 @@
     state.effects.shrinkUntil = Math.max(state.effects.shrinkUntil, state.time) + 6;
   }
 
-  // Update & draw
   function update(dt){
     state.time += dt;
     state.score += dt*10;
@@ -648,149 +619,6 @@
     p.vx += (targetVX - p.vx) * Math.min(1, dt*10);
     p.x += p.vx * dt;
 
-    // clamp horizontal & keep player on the "floor" above UI
     const pw = p.w * p.scale, ph = p.h * p.scale;
     if (p.x < 0) { p.x = 0; p.vx = Math.max(0, p.vx); }
-    if (p.x + pw > width) { p.x = width - pw; p.vx = Math.min(0, p.vx); }
-    const floorY = height - uiBottom - ph - 10;
-    p.y = floorY;
-
-    state.blockTimer -= worldDT;
-    const interval = Math.max(0.22, 0.9 - state.time*0.03);
-    if (state.blockTimer <= 0) { spawnBlock(); if (state.time > 12 && Math.random() < 0.35) spawnBlock(); state.blockTimer = interval; }
-
-    state.powTimer -= worldDT;
-    if (state.powTimer <= 0) { if (Math.random() < 0.35) spawnCoin(); else spawnPowerup(); state.powTimer = rand(8, 13); }
-
-    for (let i=state.blocks.length-1; i>=0; i--) {
-      const b = state.blocks[i]; b.y += b.vy * worldDT; if (b.y - b.h > height + 8) { state.blocks.splice(i,1); }
-    }
-
-    const magnet = state.effects.magnetUntil > state.time;
-    for (let i=state.powerups.length-1; i>=0; i--) {
-      const u = state.powerups[i];
-      if (magnet) {
-        const cx = (p.x + pw/2) - (u.x + u.w/2);
-        const cy = (p.y + ph/2) - (u.y + u.h/2);
-        const dist = Math.max(1, Math.hypot(cx, cy));
-        u.x += (cx/dist) * 220 * worldDT; u.y += (cy/dist) * 220 * worldDT;
-      } else { u.y += u.vy * worldDT; }
-      if (u.y - u.h > height + 8) { state.powerups.splice(i,1); continue; }
-      if (u.x < p.x + pw && u.x + u.w > p.x && u.y < p.y + ph && u.y + u.h > p.y) {
-        if (u.type === "blaster") { state.ammo += 6; ammoEl.textContent = state.ammo; }
-        else if (u.type === "shrink") { state.shrinkCharges += 1; shrinkCountEl.textContent = state.shrinkCharges; }
-        else if (u.type === "shield") { state.effects.shieldUntil = Math.max(state.effects.shieldUntil, state.time) + 6; }
-        else if (u.type === "slow")   { state.effects.slowUntil   = Math.max(state.effects.slowUntil,   state.time) + 6; }
-        else if (u.type === "magnet") { state.effects.magnetUntil = Math.max(state.effects.magnetUntil, state.time) + 8; }
-        else if (u.type === "life")   { state.lives += 1; livesEl.textContent = state.lives; }
-        state.powerups.splice(i,1);
-      }
-    }
-
-    // coins
-    for (let i=state.coins.length-1; i>=0; i--) {
-      const c = state.coins[i]; c.y += c.vy * worldDT;
-      if (c.y - c.h > height + 8) { state.coins.splice(i,1); continue; }
-      if (c.x < p.x + pw && c.x + c.w > p.x && c.y < p.y + ph && c.y + c.h > p.y) {
-        state.coins.splice(i,1);
-        coinCountEl.textContent = String((Number(coinCountEl.textContent)||0) + 1);
-        window.firebase.addCoins(1).catch(()=>{});
-      }
-    }
-
-    // bullets
-    for (let i=state.bullets.length-1; i>=0; i--) {
-      const bullet = state.bullets[i]; bullet.y += bullet.vy * dt;
-      if (bullet.y + bullet.h < -10) { state.bullets.splice(i,1); continue; }
-      for (let j=state.blocks.length-1; j>=0; j--) {
-        const b = state.blocks[j];
-        if (bullet.x < b.x + b.w && bullet.x + bullet.w > b.x && bullet.y < b.y + b.h && bullet.y + bullet.h > b.y) {
-          state.blocks.splice(j,1); state.bullets.splice(i,1); state.score += 5; break;
-        }
-      }
-    }
-
-    // block vs player
-    for (let i=state.blocks.length-1; i>=0; i--) {
-      const b = state.blocks[i];
-      const p2 = state.player, pw2 = p2.w*p2.scale, ph2 = p2.h*p2.scale;
-      if (b.x < p2.x + pw2 && b.x + b.w > p2.x && b.y < p2.y + ph2 && b.y + b.h > p2.y) {
-        if (state.player.invUntil > state.time) { state.blocks.splice(i,1); continue; }
-        const shieldActive = state.effects.shieldUntil > state.time;
-        if (shieldActive) { state.effects.shieldUntil = Math.max(state.time, state.effects.shieldUntil - 0.5); state.player.invUntil = state.time + 0.5; state.blocks.splice(i,1); continue; }
-        if (state.lives > 0) { state.lives--; livesEl.textContent = state.lives; state.player.invUntil = state.time + 1.2; state.blocks.splice(i,1); continue; }
-        gameOver(); return;
-      }
-    }
-  }
-
-  function draw(){
-    const g = ctx.createLinearGradient(0,0,0,height); g.addColorStop(0,"#0b1220"); g.addColorStop(1,"#0c0f14");
-    ctx.fillStyle = g; ctx.fillRect(0,0,width,height);
-    ctx.globalAlpha = 0.08; ctx.strokeStyle = "#8ab4ff"; ctx.lineWidth = 1;
-    const grid = Math.max(20, Math.floor(Math.min(width, height)*0.04));
-    ctx.beginPath(); for(let x=(width%grid); x<width; x+=grid){ ctx.moveTo(x,0); ctx.lineTo(x,height); }
-    for(let y=(height%grid); y<height; y+=grid){ ctx.moveTo(0,y); ctx.lineTo(width,y); } ctx.stroke(); ctx.globalAlpha = 1;
-
-    const p = state.player, pw = p.w*p.scale, ph = p.h*p.scale;
-
-    if (state.effects.shieldUntil > state.time) {
-      ctx.save(); ctx.globalAlpha = 0.25 + 0.15*Math.sin(state.time*8); ctx.fillStyle = "#4ade80";
-      roundRect(ctx, p.x-6, p.y-6, pw+12, ph+12, Math.min(16, pw*0.35), true); ctx.restore();
-    }
-    if (state.player.invUntil > state.time) { ctx.globalAlpha = 0.6 + 0.4*Math.sin(state.time*30); }
-    ctx.fillStyle = "#58a6ff"; roundRect(ctx, p.x, p.y, pw, ph, Math.min(10, pw*0.25), true); ctx.globalAlpha = 1;
-
-    for (const b of state.blocks) {
-      ctx.fillStyle = "#ff6b6b"; roundRect(ctx, b.x, b.y, b.w, b.h, Math.min(10, b.w*0.25), true);
-      ctx.globalAlpha = 0.15; ctx.fillStyle = "#ffffff"; roundRect(ctx, b.x+b.w*0.1, b.y+b.h*0.08, b.w*0.8, b.h*0.18, 8, true); ctx.globalAlpha = 1;
-    }
-
-    // power-ups
-    for (const u of state.powerups) {
-      const r = Math.min(u.w, u.h);
-      let bg="#ffd166", label="🔫";
-      if (u.type==="shrink"){ bg="#60a5fa"; label="✂"; }
-      else if (u.type==="shield"){ bg="#4ade80"; label="🛡"; }
-      else if (u.type==="slow"){ bg="#a78bfa"; label="🐌"; }
-      else if (u.type==="magnet"){ bg="#f472b6"; label="🧲"; }
-      else if (u.type==="life"){ bg="#ef4444"; label="❤️"; }
-      ctx.fillStyle = bg;
-      roundRect(ctx, u.x, u.y, u.w, u.h, Math.min(10, r*0.25), true);
-      ctx.font = `${Math.floor(r*0.7)}px system-ui,apple color emoji,Segoe UI Emoji,Emoji`;
-      ctx.textAlign="center"; ctx.textBaseline="middle";
-      ctx.fillStyle = "rgba(0,0,0,0.85)";
-      ctx.fillText(label, u.x + u.w/2, u.y + u.h/2 + 1);
-    }
-
-    // coins
-    for (const c of state.coins) {
-      const r = c.w/2, cx = c.x + r, cy = c.y + r;
-      const grad = ctx.createRadialGradient(cx-r*0.4, cy-r*0.4, r*0.2, cx, cy, r);
-      grad.addColorStop(0, "#ffe38a"); grad.addColorStop(0.55, "#f5c240"); grad.addColorStop(1, "#c68a12");
-      ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
-      ctx.strokeStyle = "rgba(0,0,0,.25)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, r-1, 0, Math.PI*2); ctx.stroke();
-      ctx.save(); ctx.translate(cx,cy); ctx.fillStyle="rgba(0,0,0,.28)";
-      for (let i=0;i<16;i++){ const a=i*(Math.PI*2/16); ctx.beginPath(); ctx.arc(Math.cos(a)*(r-3), Math.sin(a)*(r-3), 1.8, 0, Math.PI*2); ctx.fill(); }
-      ctx.restore();
-      ctx.beginPath(); ctx.arc(cx, cy, r*0.55, 0, Math.PI*2); ctx.fillStyle="rgba(0,0,0,.15)"; ctx.fill();
-      ctx.fillStyle="#2b1900"; ctx.font=`${Math.max(10, r*0.9)}px system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("D", cx, cy+1);
-    }
-
-    // bullets
-    ctx.fillStyle = "#f8fafc";
-    for (const b of state.bullets) roundRect(ctx, b.x, b.y, b.w, b.h, 4, true);
-  }
-
-  function loop(now){
-    if (!state.running || state.paused || state.over) return;
-    const dt = Math.min(0.033, (now - state.last)/1000);
-    state.last = now;
-    update(dt); draw();
-    requestAnimationFrame(loop);
-  }
-
-  draw();
-</script>
-</body>
-</html>
+    if (p.x + pw > width) { p.x = width - pw; p

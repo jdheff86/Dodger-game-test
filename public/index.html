@@ -17,7 +17,7 @@
   canvas { display:block; width:100%; height:100%; }
   .safe { padding-top: env(safe-area-inset-top); }
 
-  /* HUD -*/
+  /* HUD */
   header { position:absolute; top:0; left:0; right:0; z-index:8; display:flex; flex-direction:column; padding:8px 10px; gap:6px; pointer-events:none; }
   #hud { --s:0.82; }
   .topbar,.toolbar{ display:flex; align-items:center; justify-content:space-between; gap:calc(8px*var(--s)); height:calc(44px*var(--s)); flex-wrap:nowrap; }
@@ -166,7 +166,7 @@
   <div class="panel">
     <button class="x" id="lbClose">×</button>
     <h2>Global Leaderboard (Top 20)</h2>
-    <table id="lbTable">
+    <table id="lbTable" style="width:100%; border-collapse:collapse;">
       <thead><tr><th style="text-align:left;">#</th><th style="text-align:left;">Name</th><th>Score</th><th>When</th></tr></thead>
       <tbody></tbody>
     </table>
@@ -229,80 +229,68 @@
 
   setPersistence(auth, browserLocalPersistence).catch(()=>{});
 
-  // ── Helpers exposed to game code (aligned to your rules)
+  // ── Helpers exposed to game code
   let walletUnsub = null;
 
   window.firebase = {
     auth, db,
-
     onUser(cb){ return onAuthStateChanged(auth, cb); },
-
     async ensureWallet(uid){
       const ref = doc(db, "wallets", uid);
-      const s = await getDoc(ref).catch(()=>null);
-      if (!s || !s.exists()) await setDoc(ref, { coins: 0 });
+      const s = await getDoc(ref);
+      if (!s.exists()) await setDoc(ref, { coins:0 });
       return ref;
     },
-
     async watchWallet(uid, onCoins){
       if (walletUnsub) { walletUnsub(); walletUnsub = null; }
       if (!uid) { onCoins?.(0); return; }
-      const ref = await this.ensureWallet(uid);
+      const ref = await window.firebase.ensureWallet(uid);
       walletUnsub = onSnapshot(ref, (snap)=>{
         const coins = Number(snap.data()?.coins || 0);
         onCoins?.(coins);
       });
     },
-
     async setDisplayName(name){
       if (!auth.currentUser) return;
       const clean = String(name||"Player").trim().slice(0,24);
       await updateProfile(auth.currentUser, { displayName: clean });
       return clean;
     },
-
     async saveScore(score){
       if (!auth.currentUser) return { ok:false, error:"Not signed in" };
       try{
         await addDoc(collection(db,"scores"),{
-          uid: auth.currentUser.uid,
-          name: auth.currentUser.displayName || auth.currentUser.email || "Player",
+          uid:auth.currentUser.uid,
+          name:auth.currentUser.displayName || auth.currentUser.email || "Player",
           score: Math.floor(Number(score)||0),
           ts: serverTimestamp()
         });
         return { ok:true };
       }catch(e){ return { ok:false, error:e.message }; }
     },
-
     async addCoins(n){
       const u = auth.currentUser;
       if (!u) throw new Error("Not signed in");
-      const ref = await this.ensureWallet(u.uid);
+      const ref = await window.firebase.ensureWallet(u.uid);
       await updateDoc(ref, { coins: increment(n|0) });
     },
 
+    // Top N scores (single-field order to avoid composite index requirement)
     async loadTop(n = 20){
-      try{
-        const q1 = query(
-          collection(db,"scores"),
-          orderBy("score","desc"),
-          orderBy("ts","desc"),
-          limit(n)
-        );
-        const s1 = await getDocs(q1);
-        return s1.docs.map(d => {
-          const data = d.data() || {};
-          return { name: data.name||"Player", score: Number(data.score)||0, ts: data.ts||null };
-        });
-      }catch(e){
-        // Fallback if the composite index isn't available
-        const q2 = query(collection(db,"scores"), orderBy("score","desc"), limit(n));
-        const s2 = await getDocs(q2);
-        return s2.docs.map(d => {
-          const data = d.data() || {};
-          return { name: data.name||"Player", score: Number(data.score)||0, ts: data.ts||null };
-        });
-      }
+      const qy = query(
+        collection(db, "scores"),
+        orderBy("score", "desc"),
+        limit(n)
+      );
+      const snap = await getDocs(qy);
+      return snap.docs.map(d => {
+        const data = d.data() || {};
+        return {
+          name: data.name || "Player",
+          score: Number(data.score)||0,
+          ts: data.ts || null
+        };
+      });
     }
   };
 
@@ -409,14 +397,32 @@
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d", { alpha:false, desynchronized:true });
 
+  // --- Keep player above bottom UI ---
   let width=0, height=0, dpr=Math.max(1, window.devicePixelRatio||1);
+  let uiBottom = 140; // will be measured
+
+  function measureUIBottom(){
+    // Height of controls + some breathing room; also respect abilities bar (bottom:110px)
+    const controls = document.querySelector('.controls');
+    const ch = controls ? controls.getBoundingClientRect().height : 0;
+    const pad = 28; // extra cushion
+    uiBottom = Math.max(110 + 40, ch + pad); // at least above abilities
+  }
+
   function fit(){
+    measureUIBottom();
     width=Math.max(320,Math.floor(window.innerWidth||document.documentElement.clientWidth));
     height=Math.max(480,Math.floor(window.innerHeight||document.documentElement.clientHeight));
     dpr=Math.max(1, window.devicePixelRatio||1);
     canvas.width=Math.floor(width*dpr); canvas.height=Math.floor(height*dpr);
     canvas.style.width=width+"px"; canvas.style.height=height+"px";
     ctx.setTransform(dpr,0,0,dpr,0,0);
+
+    // keep player perched above UI if game already initialized
+    if (state) {
+      const floorY = height - uiBottom - (state.player.h * state.player.scale) - 10;
+      state.player.y = Math.min(state.player.y, floorY);
+    }
   }
   fit(); window.addEventListener("resize", fit);
 
@@ -487,7 +493,7 @@
     lbModal.style.display="flex";
   });
   lbClose.addEventListener("pointerdown", e=>{ e.preventDefault(); lbModal.style.display="none"; });
-  function escapeHtml(x){ return (x||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m])); }
+  function escapeHtml(x){ return (x||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;","&gt;":"&gt;","\"":"&quot;","'":"&#39;" }[m])); }
 
   // Game state
   const state = {
@@ -508,7 +514,12 @@
   function resetPlayer(){
     const base = Math.max(36, Math.min(56, Math.floor(Math.min(width,height)*0.06)));
     state.player.w = base; state.player.h = base;
-    state.player.x = (width - state.player.w)/2; state.player.y = height - state.player.h - 22; state.player.vx = 0; state.player.scale=1;
+    const pw = state.player.w * state.player.scale;
+    const ph = state.player.h * state.player.scale;
+    const floorY = height - uiBottom - ph - 10; // keep above controls & shrink bar
+    state.player.x = (width - pw)/2;
+    state.player.y = floorY;
+    state.player.vx = 0; state.player.scale=1;
   }
   resetPlayer();
 
@@ -580,11 +591,13 @@
       ctx.font="700 20px system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif"; ctx.textAlign="center"; ctx.fillText("Paused", width/2, height*0.45); ctx.restore(); }
   }
 
+  // Helpers
   function rand(min,max){ return Math.random()*(max-min)+min; }
   function roundRect(ctx,x,y,w,h,r,fill){ ctx.beginPath(); const rr=Math.min(r,w/2,h/2);
     ctx.moveTo(x+rr,y); ctx.arcTo(x+w,y, x+w,y+h, rr); ctx.arcTo(x+w,y+h, x,y+h, rr);
     ctx.arcTo(x,y+h, x,y, rr); ctx.arcTo(x,y, x+w,y, rr); ctx.closePath(); if(fill) ctx.fill(); }
 
+  // Spawners
   function spawnBlock(){
     const size = rand(Math.max(22,width*0.03), Math.max(38,width*0.07));
     const x = rand(0, width - size);
@@ -613,6 +626,7 @@
     state.coins.push({ x, y:-size, w:size, h:size, vy, t0 });
   }
 
+  // Actions
   function shoot(){
     if (state.ammo <= 0 || state.over || !state.running) return;
     state.ammo--; ammoEl.textContent = state.ammo;
@@ -625,6 +639,7 @@
     state.effects.shrinkUntil = Math.max(state.effects.shrinkUntil, state.time) + 6;
   }
 
+  // Update & draw
   function update(dt){
     state.time += dt;
     state.score += dt*10;
@@ -642,9 +657,13 @@
     targetVX += state.input.swipeVX;
     p.vx += (targetVX - p.vx) * Math.min(1, dt*10);
     p.x += p.vx * dt;
+
+    // clamp horizontal & keep player on the "floor" above UI
     const pw = p.w * p.scale, ph = p.h * p.scale;
     if (p.x < 0) { p.x = 0; p.vx = Math.max(0, p.vx); }
     if (p.x + pw > width) { p.x = width - pw; p.vx = Math.min(0, p.vx); }
+    const floorY = height - uiBottom - ph - 10;
+    p.y = floorY;
 
     state.blockTimer -= worldDT;
     const interval = Math.max(0.22, 0.9 - state.time*0.03);
@@ -678,12 +697,13 @@
       }
     }
 
-    // coins (pickup) — no manual UI bump; Firestore snapshot updates the chip
+    // coins
     for (let i=state.coins.length-1; i>=0; i--) {
       const c = state.coins[i]; c.y += c.vy * worldDT;
       if (c.y - c.h > height + 8) { state.coins.splice(i,1); continue; }
       if (c.x < p.x + pw && c.x + c.w > p.x && c.y < p.y + ph && c.y + c.h > p.y) {
         state.coins.splice(i,1);
+        coinCountEl.textContent = String((Number(coinCountEl.textContent)||0) + 1);
         window.firebase.addCoins(1).catch(()=>{});
       }
     }
@@ -724,6 +744,7 @@
 
     const p = state.player, pw = p.w*p.scale, ph = p.h*p.scale;
 
+    // player + effects
     if (state.effects.shieldUntil > state.time) {
       ctx.save(); ctx.globalAlpha = 0.25 + 0.15*Math.sin(state.time*8); ctx.fillStyle = "#4ade80";
       roundRect(ctx, p.x-6, p.y-6, pw+12, ph+12, Math.min(16, pw*0.35), true); ctx.restore();
@@ -731,9 +752,27 @@
     if (state.player.invUntil > state.time) { ctx.globalAlpha = 0.6 + 0.4*Math.sin(state.time*30); }
     ctx.fillStyle = "#58a6ff"; roundRect(ctx, p.x, p.y, pw, ph, Math.min(10, pw*0.25), true); ctx.globalAlpha = 1;
 
+    // blocks
     for (const b of state.blocks) {
       ctx.fillStyle = "#ff6b6b"; roundRect(ctx, b.x, b.y, b.w, b.h, Math.min(10, b.w*0.25), true);
       ctx.globalAlpha = 0.15; ctx.fillStyle = "#ffffff"; roundRect(ctx, b.x+b.w*0.1, b.y+b.h*0.08, b.w*0.8, b.h*0.18, 8, true); ctx.globalAlpha = 1;
+    }
+
+    // power-ups (now drawn!)
+    for (const u of state.powerups) {
+      const r = Math.min(u.w, u.h);
+      let bg="#ffd166", label="🔫";
+      if (u.type==="shrink"){ bg="#60a5fa"; label="✂"; }
+      else if (u.type==="shield"){ bg="#4ade80"; label="🛡"; }
+      else if (u.type==="slow"){ bg="#a78bfa"; label="🐌"; }
+      else if (u.type==="magnet"){ bg="#f472b6"; label="🧲"; }
+      else if (u.type==="life"){ bg="#ef4444"; label="❤️"; }
+      ctx.fillStyle = bg;
+      roundRect(ctx, u.x, u.y, u.w, u.h, Math.min(10, r*0.25), true);
+      ctx.font = `${Math.floor(r*0.7)}px system-ui,apple color emoji,Segoe UI Emoji,Emoji`;
+      ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillStyle = "rgba(0,0,0,0.85)";
+      ctx.fillText(label, u.x + u.w/2, u.y + u.h/2 + 1);
     }
 
     // coins

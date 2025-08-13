@@ -47,6 +47,22 @@
     padding:4px 8px; border-radius:999px; background:rgba(88,166,255,.18);
     border:1px solid rgba(88,166,255,.35);
   }
+  /* Lives (hearts) next to Shrink */
+#lifeBar{
+  pointer-events:none;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  margin-left:10px;
+}
+#lifeBar .heart{
+  font-size:22px;
+  line-height:1;
+  filter:drop-shadow(0 1px 0 rgba(0,0,0,.35));
+}
+#lifeBar .heart.empty{
+  opacity:.35; /* “empty” look */
+}
 
   #abilities{ position:absolute; left:0; right:0; bottom:110px; display:flex; justify-content:center; z-index:6; pointer-events:none; }
   #shrinkBtn{ pointer-events:auto; display:flex; align-items:center; gap:8px; }
@@ -103,7 +119,7 @@
     <div class="left">
       <div class="hud"><strong>Score:</strong><span id="score">0</span></div>
       <div class="hud"><strong>Best:</strong><span id="best">0</span></div>
-      <div class="hud"><strong>Lives:</strong><span id="lives" class="ammo">0</span></div>
+      
     </div>
     <div class="right">
       <div id="userChip">Not signed in</div>
@@ -140,7 +156,10 @@
 </header>
 
 <!-- Ability bar -->
-<div id="abilities"><button id="shrinkBtn" class="btn">✂ Shrink <span id="shrinkCount" class="ammo">0</span></button></div>
+<div id="abilities">
+  <button id="shrinkBtn" class="btn">✂ Shrink <span id="shrinkCount" class="ammo">0</span></button>
+  <div id="lifeBar" aria-label="Lives"></div>
+</div>
 
 <!-- Controls -->
 <div class="controls">
@@ -480,7 +499,17 @@
   const lbBody = document.querySelector("#lbTable tbody");
   const shrinkBtn = document.getElementById("shrinkBtn");
   const shrinkCountEl = document.getElementById("shrinkCount");
-
+const lifeBar = document.getElementById("lifeBar");
+function renderHearts(){
+  if (!lifeBar) return;
+  const max = 5;
+  const out = [];
+  for (let i = 0; i < max; i++){
+    const filled = i < state.lives;
+    out.push(`<span class="heart${filled ? "" : " empty"}">${filled ? "❤️" : "🤍"}</span>`);
+  }
+  lifeBar.innerHTML = out.join("");
+}
   const prevent=(e)=>{ if (e.target.closest(".overlay") || e.target.closest(".modal")) return; e.preventDefault(); };
   ["touchstart","touchmove","touchend","gesturestart"].forEach(ev=>document.addEventListener(ev, prevent, { passive:false }));
 
@@ -539,7 +568,10 @@
     effects:{ shrinkUntil:0, shieldUntil:0, slowUntil:0, magnetUntil:0 },
     coins:[]
   };
-  bestEl.textContent = state.best; ammoEl.textContent = state.ammo; livesEl.textContent = state.lives; shrinkCountEl.textContent = state.shrinkCharges;
+  bestEl.textContent = state.best;
+ammoEl.textContent = state.ammo;
+shrinkCountEl.textContent = state.shrinkCharges;
+renderHearts();
 
   function resetPlayer(){
     const base = Math.max(36, Math.min(56, Math.floor(Math.min(width,height)*0.06)));
@@ -600,8 +632,12 @@
     state.difficulty=1; state.over=false; state.paused=false;
     state.effects = { shrinkUntil:0, shieldUntil:0, slowUntil:0, magnetUntil:0 };
     state.player.invUntil = 0;
-    state.ammo=0; state.shrinkCharges=0; state.lives=0;
-    ammoEl.textContent="0"; livesEl.textContent="0"; shrinkCountEl.textContent="0";
+    state.ammo = 0;
+state.shrinkCharges = 0;
+state.lives = 0;
+ammoEl.textContent = "0";
+shrinkCountEl.textContent = "0";
+renderHearts();
     resetPlayer();
     overlay.style.display="none"; state.running=true; state.last=performance.now();
     requestAnimationFrame(loop);
@@ -722,7 +758,7 @@
         else if (u.type === "shield") { state.effects.shieldUntil = Math.max(state.effects.shieldUntil, state.time) + 6; }
         else if (u.type === "slow")   { state.effects.slowUntil   = Math.max(state.effects.slowUntil,   state.time) + 6; }
         else if (u.type === "magnet") { state.effects.magnetUntil = Math.max(state.effects.magnetUntil, state.time) + 8; }
-        else if (u.type === "life")   { state.lives += 1; livesEl.textContent = state.lives; }
+        else if (u.type === "life")   { state.lives = Math.min(5, state.lives + 1); renderHearts(); }
         state.powerups.splice(i,1);
       }
     }
@@ -757,7 +793,13 @@
         if (state.player.invUntil > state.time) { state.blocks.splice(i,1); continue; }
         const shieldActive = state.effects.shieldUntil > state.time;
         if (shieldActive) { state.effects.shieldUntil = Math.max(state.time, state.effects.shieldUntil - 0.5); state.player.invUntil = state.time + 0.5; state.blocks.splice(i,1); continue; }
-        if (state.lives > 0) { state.lives--; livesEl.textContent = state.lives; state.player.invUntil = state.time + 1.2; state.blocks.splice(i,1); continue; }
+        if (state.lives > 0) {
+  state.lives--;
+  renderHearts();
+  state.player.invUntil = state.time + 1.2;
+  state.blocks.splice(i,1);
+  continue;
+}
         gameOver(); return;
       }
     }

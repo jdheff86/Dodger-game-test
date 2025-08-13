@@ -767,7 +767,26 @@ p.y = Math.max(0, floorY);
       ctx.fillStyle = "#ff6b6b"; roundRect(ctx, b.x, b.y, b.w, b.h, Math.min(10, b.w*0.25), true);
       ctx.globalAlpha = 0.15; ctx.fillStyle = "#ffffff"; roundRect(ctx, b.x+b.w*0.1, b.y+b.h*0.08, b.w*0.8, b.h*0.18, 8, true); ctx.globalAlpha = 1;
     }
+// power-ups (draw them)
+for (const u of state.powerups) {
+  const r = Math.min(u.w, u.h);
+  let bg = "#ffd166", glyph = "🔫";   // default: blaster
+  if (u.type === "shrink") { bg = "#60a5fa"; glyph = "✂"; }
+  else if (u.type === "shield") { bg = "#4ade80"; glyph = "🛡"; }
+  else if (u.type === "slow")   { bg = "#a78bfa"; glyph = "🐌"; }
+  else if (u.type === "magnet") { bg = "#f472b6"; glyph = "🧲"; }
+  else if (u.type === "life")   { bg = "#ef4444"; glyph = "❤️"; }
 
+  ctx.fillStyle = bg;
+  roundRect(ctx, u.x, u.y, u.w, u.h, Math.min(10, r * 0.25), true);
+
+  // emoji label
+  ctx.font = `${Math.floor(r * 0.7)}px system-ui, apple color emoji, Segoe UI Emoji, Emoji`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "rgba(0,0,0,.85)";
+  ctx.fillText(glyph, u.x + u.w / 2, u.y + u.h / 2 + 1);
+}
     // coins
     for (const c of state.coins) {
       const r = c.w/2, cx = c.x + r, cy = c.y + r;

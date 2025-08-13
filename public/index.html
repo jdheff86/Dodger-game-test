@@ -732,8 +732,16 @@ renderHearts();
     p.y = Math.max(0, floorY);
 
     state.blockTimer -= worldDT;
-    const interval = Math.max(0.22, 0.9 - state.time*0.03);
-    if (state.blockTimer <= 0) { spawnBlock(); if (state.time > 12 && Math.random() < 0.35) spawnBlock(); state.blockTimer = interval; }
+// base interval grows ~8–10% to reduce spawn frequency slightly
+const baseInterval = Math.max(0.24, 0.9 - state.time * 0.03);
+const interval = baseInterval * 1.08; // bump to 1.10 for ~10% fewer spawns
+
+if (state.blockTimer <= 0) {
+  spawnBlock();
+  // Step 2 (below) also reduces the “double-spawn” chance
+  if (state.time > 12 && Math.random() < 0.25) spawnBlock();
+  state.blockTimer = interval;
+}
 
     state.powTimer -= worldDT;
     if (state.powTimer <= 0) { if (Math.random() < 0.35) spawnCoin(); else spawnPowerup(); state.powTimer = rand(8, 13); }

@@ -52,8 +52,17 @@
   #shrinkBtn{ pointer-events:auto; display:flex; align-items:center; gap:8px; }
   #shrinkCount{ min-width:1.6em; text-align:center; }
 
-  .overlay{ position:absolute; inset:0; z-index:9; display:flex; align-items:center; justify-content:center;
-    background:radial-gradient(1200px 800px at 50% 40%, rgba(88,166,255,.12), rgba(12,15,20,.92) 60%); text-align:center; padding:24px; }
+  /* Start overlay (raised above everything and clickable) */
+  .overlay{
+    position:absolute; inset:0;
+    z-index:9999;                 /* ensure it's always on top */
+    display:flex; align-items:center; justify-content:center;
+    pointer-events:auto;          /* allow tapping */
+    background:radial-gradient(1200px 800px at 50% 40%, rgba(88,166,255,.12), rgba(12,15,20,.92) 60%);
+    text-align:center; padding:24px;
+  }
+  .overlay .card{ pointer-events:auto; } /* extra safety so button receives events */
+
   .card{ max-width:560px; width:92%; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); border-radius:18px; padding:18px; backdrop-filter:blur(10px); }
   .title{ font-size:26px; font-weight:800; margin:4px 0 10px; }
   .subtitle{ color:var(--muted); margin-bottom:14px; }
@@ -229,25 +238,109 @@
 
   setPersistence(auth, browserLocalPersistence).catch(()=>{});
 
-  // ── Auth UI wiring + wallet sync
-  const userChip   = document.getElementById("userChip");
-  const coinCountEl= document.getElementById("coinCount");
-  const authBtn    = document.getElementById("authBtn");
-  const authModal  = document.getElementById("authModal");
-  const authClose  = document.getElementById("authClose");
-  const authEmail  = document.getElementById("authEmail");
-  const authPass   = document.getElementById("authPass");
-  const authMsg    = document.getElementById("authMsg");
-  const btnIn      = document.getElementById("authSignin");
-  const btnUp      = document.getElementById("authSignup");
-  const btnOut     = document.getElementById("authSignout");
-  const btnForgot  = document.getElementById("authForgot");
-  const startBtn   = document.getElementById("startBtn");
-  const startSub   = document.getElementById("startSub");
-  const overlay    = document.getElementById("overlay");      /* NEW: overlay in module */
+  // ── Helpers exposed to game code (aligned to your rules)
+  let walletUnsub = null;
 
-  /* NEW: ensure landing overlay is visible on load */
-  overlay.style.display = "flex";
+  window.firebase = {
+    auth, db,
+
+    onUser(cb){ return onAuthStateChanged(auth, cb); },
+
+    async ensureWallet(uid){
+      const ref = doc(db, "wallets", uid);
+      const s = await getDoc(ref).catch(()=>null);
+      if (!s || !s.exists()) await setDoc(ref, { coins: 0 });
+      return ref;
+    },
+
+    async watchWallet(uid, onCoins){
+      if (walletUnsub) { walletUnsub(); walletUnsub = null; }
+      if (!uid) { onCoins?.(0); return; }
+      const ref = await this.ensureWallet(uid);
+      walletUnsub = onSnapshot(ref, (snap)=>{
+        const coins = Number(snap.data()?.coins || 0);
+        onCoins?.(coins);
+      });
+    },
+
+    async setDisplayName(name){
+      if (!auth.currentUser) return;
+      const clean = String(name||"Player").trim().slice(0,24);
+      await updateProfile(auth.currentUser, { displayName: clean });
+      return clean;
+    },
+
+    async saveScore(score){
+      if (!auth.currentUser) return { ok:false, error:"Not signed in" };
+      try{
+        await addDoc(collection(db,"scores"),{
+          uid: auth.currentUser.uid,
+          name: auth.currentUser.displayName || auth.currentUser.email || "Player",
+          score: Math.floor(Number(score)||0),
+          ts: serverTimestamp()
+        });
+        return { ok:true };
+      }catch(e){ return { ok:false, error:e.message }; }
+    },
+
+    async addCoins(n){
+      const u = auth.currentUser;
+      if (!u) throw new Error("Not signed in");
+      const ref = await this.ensureWallet(u.uid);
+      await updateDoc(ref, { coins: increment(n|0) });
+    },
+
+    async loadTop(n = 20){
+      try{
+        const q1 = query(
+          collection(db,"scores"),
+          orderBy("score","desc"),
+          orderBy("ts","desc"),
+          limit(n)
+        );
+        const s1 = await getDocs(q1);
+        return s1.docs.map(d => {
+          const data = d.data() || {};
+          return { name: data.name||"Player", score: Number(data.score)||0, ts: data.ts||null };
+        });
+      }catch(e){
+        // Fallback if the composite index isn't available
+        const q2 = query(collection(db,"scores"), orderBy("score","desc"), limit(n));
+        const s2 = await getDocs(q2);
+        return s2.docs.map(d => {
+          const data = d.data() || {};
+          return { name: data.name||"Player", score: Number(data.score)||0, ts: data.ts||null };
+        });
+      }
+    }
+  };
+
+  function prettyAuthError(err){
+    const code = (err && err.code) || "";
+    if (code.includes("invalid-credential")) return "Email or password is incorrect.";
+    if (code.includes("user-disabled")) return "This account is disabled.";
+    if (code.includes("too-many-requests")) return "Too many attempts. Try again later.";
+    if (code.includes("email-already-in-use")) return "Account exists. Use Sign in.";
+    if (code.includes("invalid-email")) return "That email address looks invalid.";
+    if (code.includes("weak-password")) return "Password must be at least 6 characters.";
+    return (err && err.message) || "Authentication error.";
+  }
+
+  // ── Auth UI wiring + wallet sync
+  const userChip = document.getElementById("userChip");
+  const coinCountEl = document.getElementById("coinCount");
+  const authBtn = document.getElementById("authBtn");
+  const authModal = document.getElementById("authModal");
+  const authClose = document.getElementById("authClose");
+  const authEmail = document.getElementById("authEmail");
+  const authPass = document.getElementById("authPass");
+  const authMsg  = document.getElementById("authMsg");
+  const btnIn    = document.getElementById("authSignin");
+  const btnUp    = document.getElementById("authSignup");
+  const btnOut   = document.getElementById("authSignout");
+  const btnForgot= document.getElementById("authForgot");
+  const startBtn = document.getElementById("startBtn");
+  const startSub = document.getElementById("startSub");
 
   onAuthStateChanged(auth, async (u)=>{
     if (!u){
@@ -256,7 +349,6 @@
       await window.firebase.watchWallet(null, null);
       startSub.textContent = "Sign in to play and save coins.";
       startBtn.textContent = "Sign in";
-      overlay.style.display = "flex";                          /* NEW: show overlay when signed out */
       return;
     }
     userChip.textContent = u.displayName ? `Signed in: ${u.displayName}` :
@@ -316,17 +408,6 @@
       authMsg.textContent = prettyAuthError(err);
     }
   });
-
-  function prettyAuthError(err){
-    const code = (err && err.code) || "";
-    if (code.includes("invalid-credential")) return "Email or password is incorrect.";
-    if (code.includes("user-disabled")) return "This account is disabled.";
-    if (code.includes("too-many-requests")) return "Too many attempts. Try again later.";
-    if (code.includes("email-already-in-use")) return "Account exists. Use Sign in.";
-    if (code.includes("invalid-email")) return "That email address looks invalid.";
-    if (code.includes("weak-password")) return "Password must be at least 6 characters.";
-    return (err && err.message) || "Authentication error.";
-  }
 </script>
 
 <!-- ===== Game code ===== -->
@@ -459,7 +540,7 @@
 
     const pw = state.player.w * state.player.scale;
     const ph = state.player.h * state.player.scale;
-    const floorY = height - uiBottom - ph - 10;
+    const floorY = height - uiBottom - ph - 10; // keep above controls/abilities
 
     state.player.x = (width - pw)/2;
     state.player.y = Math.max(0, floorY);
@@ -491,15 +572,18 @@
     if(e.key==="ArrowRight"||e.key==="d") state.input.right=false;
   });
 
-  // Force sign-in on Start
-  startBtn.addEventListener("pointerdown", e=>{
+  // Start button — support both click and pointerdown, and force sign-in when needed
+  function handleStart(e){
     e.preventDefault();
     if (!window.firebase.auth.currentUser){
       document.getElementById("authModal").style.display = "flex";
       return;
     }
     startGame();
-  });
+  }
+  startBtn.addEventListener("pointerdown", handleStart);
+  startBtn.addEventListener("click", handleStart);
+
   pauseBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); togglePause(); });
 
   function startGame(){
@@ -599,6 +683,7 @@
     const pw = p.w * p.scale, ph = p.h * p.scale;
     if (p.x < 0) { p.x = 0; p.vx = Math.max(0, p.vx); }
     if (p.x + pw > width) { p.x = width - pw; p.vx = Math.min(0, p.vx); }
+    // keep player perched above bottom UI (accounts for shrink scaling)
     const floorY = height - uiBottom - ph - 10;
     p.y = Math.max(0, floorY);
 
@@ -634,7 +719,7 @@
       }
     }
 
-    // coins
+    // coins (pickup) — no manual UI bump; Firestore snapshot updates the chip
     for (let i=state.coins.length-1; i>=0; i--) {
       const c = state.coins[i]; c.y += c.vy * worldDT;
       if (c.y - c.h > height + 8) { state.coins.splice(i,1); continue; }
@@ -692,7 +777,7 @@
       ctx.globalAlpha = 0.15; ctx.fillStyle = "#ffffff"; roundRect(ctx, b.x+b.w*0.1, b.y+b.h*0.08, b.w*0.8, b.h*0.18, 8, true); ctx.globalAlpha = 1;
     }
 
-    /* power-ups */
+    // power-ups
     for (const u of state.powerups) {
       const r = Math.min(u.w, u.h);
       let bg = "#ffd166", glyph = "🔫";
@@ -701,7 +786,6 @@
       else if (u.type === "slow")   { bg = "#a78bfa"; glyph = "🐌"; }
       else if (u.type === "magnet") { bg = "#f472b6"; glyph = "🧲"; }
       else if (u.type === "life")   { bg = "#ef4444"; glyph = "❤️"; }
-
       ctx.fillStyle = bg;
       roundRect(ctx, u.x, u.y, u.w, u.h, Math.min(10, r * 0.25), true);
       ctx.font = `${Math.floor(r * 0.7)}px system-ui, apple color emoji, Segoe UI Emoji, Emoji`;
@@ -711,7 +795,7 @@
       ctx.fillText(glyph, u.x + u.w / 2, u.y + u.h / 2 + 1);
     }
 
-    /* coins */
+    // coins
     for (const c of state.coins) {
       const r = c.w/2, cx = c.x + r, cy = c.y + r;
       const grad = ctx.createRadialGradient(cx-r*0.4, cy-r*0.4, r*0.2, cx, cy, r);

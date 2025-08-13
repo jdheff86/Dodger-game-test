@@ -53,15 +53,23 @@
   #shrinkCount{ min-width:1.6em; text-align:center; }
 
   /* Start overlay (raised above everything and clickable) */
-  .overlay{
-    position:absolute; inset:0;
-    z-index:9999;                 /* ensure it's always on top */
-    display:flex; align-items:center; justify-content:center;
-    pointer-events:auto;          /* allow tapping */
-    background:radial-gradient(1200px 800px at 50% 40%, rgba(88,166,255,.12), rgba(12,15,20,.92) 60%);
-    text-align:center; padding:24px;
-  }
-  .overlay .card{ pointer-events:auto; } /* extra safety so button receives events */
+  .overlay {
+    position:absolute;
+    inset:0;
+    z-index:9999;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    pointer-events:none; /* ✅ lets clicks pass through background */
+    background:radial-gradient(1200px 800px at 50% 20%, rgba(0,0,0,0.8), transparent 80%);
+    text-align:center;
+    padding:24px;
+}
+
+.overlay .card {
+    pointer-events:auto; /* ✅ keeps card clickable */
+}
+  .overlay .card{ pointer-events:none; } /* extra safety so button receives events */
 
   .card{ max-width:560px; width:92%; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); border-radius:18px; padding:18px; backdrop-filter:blur(10px); }
   .title{ font-size:26px; font-weight:800; margin:4px 0 10px; }

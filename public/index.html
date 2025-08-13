@@ -48,34 +48,22 @@
     border:1px solid rgba(88,166,255,.35);
   }
 
-  #abilities{ position:absolute; left:0; right:0; bottom:110px; display:flex; justify-content:center; z-index:6; pointer-events:none; }
+  #abilities{ position:absolute; left:0; right:0; bottom:110px; display:flex; justify-content:center; gap:12px; z-index:6; pointer-events:none; }
   #shrinkBtn{ pointer-events:auto; display:flex; align-items:center; gap:8px; }
   #shrinkCount{ min-width:1.6em; text-align:center; }
 
-  .overlay{ position:absolute; inset:0; z-index:7; display:flex; align-items:center; justify-content:center;
-    background:radial-gradient(1200px 800px at 50% 40%, rgba(88,166,255,.12), rgba(12,15,20,.92) 60%); text-align:center; padding:24px; }
-  .card{ max-width:560px; width:92%; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); border-radius:18px; padding:18px; backdrop-filter:blur(10px); }
-  .title{ font-size:26px; font-weight:800; margin:4px 0 10px; }
-  .subtitle{ color:var(--muted); margin-bottom:14px; }
-  .go{ margin-top:12px; width:100%; padding:12px 14px; font-weight:800; font-size:18px; border-radius:14px; border:none; color:#0b1220; background:var(--accent); }
-  .muted{ color:var(--muted); font-size:13px; }
-  .modal{ position:absolute; inset:0; z-index:12; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); padding:18px; }
-  .panel{ width:min(520px,92%); background:#121826; border:1px solid rgba(255,255,255,.12); border-radius:16px; padding:16px; position:relative; }
-  .panel h2{ margin:4px 0 12px; font-size:20px; }
-  .grid{ display:grid; gap:10px; }
-  .grid input{ width:100%; padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,.15); background:#0f141f; color:var(--fg); }
-  .actions{ display:flex; gap:10px; margin-top:8px; flex-wrap:wrap; }
-  .btn2{ flex:1; padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.06); color:var(--fg); font-weight:700; }
-  .btn2.primary{ background:var(--accent); color:#0b1220; border-color:transparent; }
-  .x{ position:absolute; top:10px; right:12px; background:transparent; border:none; color:var(--muted); font-size:22px; }
-  .small { font-size:12px; color:var(--muted); text-decoration:underline; background:none; border:none; padding:0; }
-
-  /* ⬇️ Leaderboard table layout/spacing */
-  #lbTable{ width:100%; border-collapse:separate; border-spacing:0; }
-  #lbTable th,#lbTable td{ padding:8px 10px; }
-  #lbTable td:nth-child(1){ width:32px; color:var(--muted); }
-  #lbTable td:nth-child(3){ width:90px; text-align:right; }
-  #lbTable td:nth-child(4){ width:96px; color:var(--muted); }
+  /* Hearts UI */
+  #hearts {
+    display:flex; align-items:center; gap:6px; padding:6px 10px;
+    background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
+    border-radius:12px; font-size:0; pointer-events:none;
+  }
+  .heart {
+    font-size:18px; line-height:1; filter:drop-shadow(0 1px 0 rgba(0,0,0,.35));
+    opacity:.9;
+  }
+  .heart.full { color:#ef4444; }         /* ♥ */
+  .heart.empty { color:#8a94a6; }        /* ♡ */
 </style>
 </head>
 <body class="safe">
@@ -86,7 +74,7 @@
     <div class="left">
       <div class="hud"><strong>Score:</strong><span id="score">0</span></div>
       <div class="hud"><strong>Best:</strong><span id="best">0</span></div>
-      <div class="hud"><strong>Lives:</strong><span id="lives" class="ammo">0</span></div>
+      <!-- Lives chip removed -->
     </div>
     <div class="right">
       <div id="userChip">Not signed in</div>
@@ -123,7 +111,10 @@
 </header>
 
 <!-- Ability bar -->
-<div id="abilities"><button id="shrinkBtn" class="btn">✂ Shrink <span id="shrinkCount" class="ammo">0</span></button></div>
+<div id="abilities">
+  <button id="shrinkBtn" class="btn">✂ Shrink <span id="shrinkCount" class="ammo">0</span></button>
+  <div id="hearts" aria-label="Lives"></div>
+</div>
 
 <!-- Controls -->
 <div class="controls">
@@ -295,7 +286,6 @@
           return { name: data.name||"Player", score: Number(data.score)||0, ts: data.ts||null };
         });
       }catch(e){
-        // Fallback if the composite index isn't available
         const q2 = query(collection(db,"scores"), orderBy("score","desc"), limit(n));
         const s2 = await getDocs(q2);
         return s2.docs.map(d => {
@@ -348,57 +338,6 @@
     startSub.textContent = "Avoid blocks. Power-ups: 🔫 Blaster, ✂ Shrink, 🛡 Shield, 🐌 Slow, 🧲 Magnet, ❤️ Life.";
     startBtn.textContent = "Start";
   });
-
-  function openModal(m){ m.style.display="flex"; }
-  function closeModal(m){ m.style.display="none"; }
-
-  document.querySelectorAll(".modal").forEach(m=>{
-    m.addEventListener("pointerdown", (e)=>{ if(e.target === m) closeModal(m); }, {passive:true});
-  });
-  document.addEventListener("keydown", (e)=>{
-    if (e.key === "Escape") document.querySelectorAll(".modal").forEach(m=>{ if(m.style.display==="flex") closeModal(m); });
-  });
-
-  authBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); openModal(authModal); });
-  authClose.addEventListener("pointerdown", e=>{ e.preventDefault(); closeModal(authModal); });
-
-  // Sign in / Sign up
-  btnIn.addEventListener("pointerdown", async e=>{
-    e.preventDefault(); authMsg.textContent = "";
-    try{
-      const email = (authEmail.value || "").trim();
-      const pass  = authPass.value || "";
-      await signInWithEmailAndPassword(auth, email, pass);
-      closeModal(authModal);
-    }catch(err){ authMsg.textContent = prettyAuthError(err); }
-  });
-  btnUp.addEventListener("pointerdown", async e=>{
-    e.preventDefault(); authMsg.textContent = "";
-    try{
-      const email = (authEmail.value || "").trim();
-      const pass  = authPass.value || "";
-      const cred = await createUserWithEmailAndPassword(auth, email, pass);
-      const def = email.split("@")[0].slice(0,24) || "Player";
-      await updateProfile(cred.user, { displayName: def });
-      closeModal(authModal);
-    }catch(err){ authMsg.textContent = prettyAuthError(err); }
-  });
-  btnOut.addEventListener("pointerdown", async e=>{
-    e.preventDefault(); await signOut(auth); closeModal(authModal);
-  });
-
-  // Password reset
-  btnForgot.addEventListener("pointerdown", async e=>{
-    e.preventDefault();
-    const email = (authEmail.value || "").trim();
-    if (!email) { authMsg.textContent = "Enter your email first, then tap Reset."; return; }
-    try{
-      await sendPasswordResetEmail(auth, email);
-      authMsg.textContent = "Password reset email sent. Check your inbox.";
-    }catch(err){
-      authMsg.textContent = prettyAuthError(err);
-    }
-  });
 </script>
 
 <!-- ===== Game code ===== -->
@@ -408,27 +347,24 @@
 
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d", { alpha:false, desynchronized:true });
+
   // Reserve vertical space for bottom UI so the player can't sit under it
-let uiBottom = 140;
-
-function measureUIBottom(){
-  const controls  = document.querySelector('.controls');
-  const abilities = document.getElementById('abilities');
-  let occ = 0;
-
-  if (controls){
-    const r = controls.getBoundingClientRect();
-    occ = Math.max(occ, Math.ceil(r.height || 0)); // controls height
+  let uiBottom = 140;
+  function measureUIBottom(){
+    const controls  = document.querySelector('.controls');
+    const abilities = document.getElementById('abilities');
+    let occ = 0;
+    if (controls){
+      const r = controls.getBoundingClientRect();
+      occ = Math.max(occ, Math.ceil(r.height || 0));
+    }
+    if (abilities){
+      const r = abilities.getBoundingClientRect();
+      const fromBottom = Math.max(0, Math.ceil(window.innerHeight - r.top));
+      occ = Math.max(occ, fromBottom);
+    }
+    uiBottom = Math.max(occ + 16, 120);
   }
-  if (abilities){
-    const r = abilities.getBoundingClientRect();
-    const fromBottom = Math.max(0, Math.ceil(window.innerHeight - r.top));
-    occ = Math.max(occ, fromBottom);               // distance abilities sit from bottom
-  }
-
-  // small cushion; and never too tiny
-  uiBottom = Math.max(occ + 16, 120);
-}
 
   let width=0, height=0, dpr=Math.max(1, window.devicePixelRatio||1);
   function fit(){
@@ -446,7 +382,7 @@ function measureUIBottom(){
   const scoreEl = document.getElementById("score");
   const bestEl  = document.getElementById("best");
   const ammoEl  = document.getElementById("ammo");
-  const livesEl = document.getElementById("lives");
+  const heartsEl = document.getElementById("hearts"); // NEW
   const coinCountEl = document.getElementById("coinCount");
   const startBtn= document.getElementById("startBtn");
   const pauseBtn= document.getElementById("pauseBtn");
@@ -509,7 +445,7 @@ function measureUIBottom(){
     lbModal.style.display="flex";
   });
   lbClose.addEventListener("pointerdown", e=>{ e.preventDefault(); lbModal.style.display="none"; });
-  function escapeHtml(x){ return (x||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m])); }
+  function escapeHtml(x){ return (x||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;"," >":"&gt;","\"":"&quot;","'":"&#39;" }[m])); }
 
   // Game state
   const state = {
@@ -525,21 +461,33 @@ function measureUIBottom(){
     effects:{ shrinkUntil:0, shieldUntil:0, slowUntil:0, magnetUntil:0 },
     coins:[]
   };
-  bestEl.textContent = state.best; ammoEl.textContent = state.ammo; livesEl.textContent = state.lives; shrinkCountEl.textContent = state.shrinkCharges;
+  bestEl.textContent = state.best; ammoEl.textContent = state.ammo;
+
+  function renderHearts(){
+    const max = 5;
+    heartsEl.innerHTML = "";
+    for (let i=0; i<max; i++){
+      const s = document.createElement("span");
+      const full = i < state.lives;
+      s.className = "heart " + (full ? "full" : "empty");
+      s.textContent = full ? "♥" : "♡";
+      heartsEl.appendChild(s);
+    }
+  }
 
   function resetPlayer(){
-  const base = Math.max(36, Math.min(56, Math.floor(Math.min(width,height)*0.06)));
-  state.player.w = base; state.player.h = base;
-  state.player.vx = 0; state.player.scale = 1;
+    const base = Math.max(36, Math.min(56, Math.floor(Math.min(width,height)*0.06)));
+    state.player.w = base; state.player.h = base;
+    state.player.vx = 0; state.player.scale = 1;
 
-  const pw = state.player.w * state.player.scale;
-  const ph = state.player.h * state.player.scale;
-  const floorY = height - uiBottom - ph - 10; // keep above controls/abilities
-
-  state.player.x = (width - pw)/2;
-  state.player.y = Math.max(0, floorY);
-}
+    const pw = state.player.w * state.player.scale;
+    const ph = state.player.h * state.player.scale;
+    const floorY = height - uiBottom - ph - 10;
+    state.player.x = (width - pw)/2;
+    state.player.y = Math.max(0, floorY);
+  }
   resetPlayer();
+  renderHearts();
 
   // Input
   function bindPad(el,dir){ const down=(e)=>{ e.preventDefault(); if(dir<0) state.input.left=true; else state.input.right=true; };
@@ -583,8 +531,9 @@ function measureUIBottom(){
     state.difficulty=1; state.over=false; state.paused=false;
     state.effects = { shrinkUntil:0, shieldUntil:0, slowUntil:0, magnetUntil:0 };
     state.player.invUntil = 0;
-    state.ammo=0; state.shrinkCharges=0; state.lives=0;
-    ammoEl.textContent="0"; livesEl.textContent="0"; shrinkCountEl.textContent="0";
+    state.ammo=0; state.shrinkCharges=0; state.lives=0;  // start empty
+    ammoEl.textContent="0"; shrinkCountEl.textContent="0";
+    renderHearts();
     resetPlayer();
     overlay.style.display="none"; state.running=true; state.last=performance.now();
     requestAnimationFrame(loop);
@@ -674,9 +623,8 @@ function measureUIBottom(){
     const pw = p.w * p.scale, ph = p.h * p.scale;
     if (p.x < 0) { p.x = 0; p.vx = Math.max(0, p.vx); }
     if (p.x + pw > width) { p.x = width - pw; p.vx = Math.min(0, p.vx); }
-    // keep player perched above bottom UI (accounts for shrink scaling)
-const floorY = height - uiBottom - ph - 10;
-p.y = Math.max(0, floorY);
+    const floorY = height - uiBottom - ph - 10;
+    p.y = Math.max(0, floorY);
 
     state.blockTimer -= worldDT;
     const interval = Math.max(0.22, 0.9 - state.time*0.03);
@@ -705,12 +653,14 @@ p.y = Math.max(0, floorY);
         else if (u.type === "shield") { state.effects.shieldUntil = Math.max(state.effects.shieldUntil, state.time) + 6; }
         else if (u.type === "slow")   { state.effects.slowUntil   = Math.max(state.effects.slowUntil,   state.time) + 6; }
         else if (u.type === "magnet") { state.effects.magnetUntil = Math.max(state.effects.magnetUntil, state.time) + 8; }
-        else if (u.type === "life")   { state.lives += 1; livesEl.textContent = state.lives; }
+        else if (u.type === "life")   {
+          if (state.lives < 5) { state.lives++; renderHearts(); }
+        }
         state.powerups.splice(i,1);
       }
     }
 
-    // coins (pickup) — no manual UI bump; Firestore snapshot updates the chip
+    // coins (pickup)
     for (let i=state.coins.length-1; i>=0; i--) {
       const c = state.coins[i]; c.y += c.vy * worldDT;
       if (c.y - c.h > height + 8) { state.coins.splice(i,1); continue; }
@@ -739,8 +689,16 @@ p.y = Math.max(0, floorY);
       if (b.x < p2.x + pw2 && b.x + b.w > p2.x && b.y < p2.y + ph2 && b.y + b.h > p2.y) {
         if (state.player.invUntil > state.time) { state.blocks.splice(i,1); continue; }
         const shieldActive = state.effects.shieldUntil > state.time;
-        if (shieldActive) { state.effects.shieldUntil = Math.max(state.time, state.effects.shieldUntil - 0.5); state.player.invUntil = state.time + 0.5; state.blocks.splice(i,1); continue; }
-        if (state.lives > 0) { state.lives--; livesEl.textContent = state.lives; state.player.invUntil = state.time + 1.2; state.blocks.splice(i,1); continue; }
+        if (shieldActive) {
+          state.effects.shieldUntil = Math.max(state.time, state.effects.shieldUntil - 0.5);
+          state.player.invUntil = state.time + 0.5;
+          state.blocks.splice(i,1); continue;
+        }
+        if (state.lives > 0) {
+          state.lives--; renderHearts();
+          state.player.invUntil = state.time + 1.2;
+          state.blocks.splice(i,1); continue;
+        }
         gameOver(); return;
       }
     }
@@ -767,26 +725,26 @@ p.y = Math.max(0, floorY);
       ctx.fillStyle = "#ff6b6b"; roundRect(ctx, b.x, b.y, b.w, b.h, Math.min(10, b.w*0.25), true);
       ctx.globalAlpha = 0.15; ctx.fillStyle = "#ffffff"; roundRect(ctx, b.x+b.w*0.1, b.y+b.h*0.08, b.w*0.8, b.h*0.18, 8, true); ctx.globalAlpha = 1;
     }
-// power-ups (draw them)
-for (const u of state.powerups) {
-  const r = Math.min(u.w, u.h);
-  let bg = "#ffd166", glyph = "🔫";   // default: blaster
-  if (u.type === "shrink") { bg = "#60a5fa"; glyph = "✂"; }
-  else if (u.type === "shield") { bg = "#4ade80"; glyph = "🛡"; }
-  else if (u.type === "slow")   { bg = "#a78bfa"; glyph = "🐌"; }
-  else if (u.type === "magnet") { bg = "#f472b6"; glyph = "🧲"; }
-  else if (u.type === "life")   { bg = "#ef4444"; glyph = "❤️"; }
 
-  ctx.fillStyle = bg;
-  roundRect(ctx, u.x, u.y, u.w, u.h, Math.min(10, r * 0.25), true);
+    // power-ups (draw)
+    for (const u of state.powerups) {
+      const r = Math.min(u.w, u.h);
+      let bg = "#ffd166", glyph = "🔫";
+      if (u.type === "shrink") { bg = "#60a5fa"; glyph = "✂"; }
+      else if (u.type === "shield") { bg = "#4ade80"; glyph = "🛡"; }
+      else if (u.type === "slow")   { bg = "#a78bfa"; glyph = "🐌"; }
+      else if (u.type === "magnet") { bg = "#f472b6"; glyph = "🧲"; }
+      else if (u.type === "life")   { bg = "#ef4444"; glyph = "❤️"; }
 
-  // emoji label
-  ctx.font = `${Math.floor(r * 0.7)}px system-ui, apple color emoji, Segoe UI Emoji, Emoji`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillStyle = "rgba(0,0,0,.85)";
-  ctx.fillText(glyph, u.x + u.w / 2, u.y + u.h / 2 + 1);
-}
+      ctx.fillStyle = bg;
+      roundRect(ctx, u.x, u.y, u.w, u.h, Math.min(10, r * 0.25), true);
+      ctx.font = `${Math.floor(r * 0.7)}px system-ui, apple color emoji, Segoe UI Emoji, Emoji`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "rgba(0,0,0,.85)";
+      ctx.fillText(glyph, u.x + u.w / 2, u.y + u.h / 2 + 1);
+    }
+
     // coins
     for (const c of state.coins) {
       const r = c.w/2, cx = c.x + r, cy = c.y + r;
@@ -819,5 +777,3 @@ for (const u of state.powerups) {
 </script>
 </body>
 </html>
-
-

@@ -975,6 +975,8 @@ const loadout = { ammo: 0, shrink: 0, lives: 0 };
 const overlayCard  = document.querySelector("#overlay .card");
 const overlayTitle = document.querySelector("#overlay .title");
 let showingPaused  = false;
+// Add this near your other top-level flags (e.g., next to `let showingPaused = false;`)
+let _starting = false;
 // Prevents accidental resume for ~250ms after closing any UI
 let _resumeBlockUntil = 0;
 window.blockResume = function(ms = 250){
@@ -1012,17 +1014,21 @@ showWaitingOverlay();
 
 // Tap anywhere on the overlay: start or resume
 // Tap anywhere on the overlay: start or resume
+// REPLACE your existing tryStartOrResume with this:
 function tryStartOrResume(e){
   e.preventDefault();
 
-  // 1) Don’t resume if any UI is open or we’re inside the HUD/menu
+  // If the tap/click started on the Start button, let ONLY the button handler run.
+  if (e.target.closest("#startBtn")) return;
+
+  // Don’t resume if any UI is open or the tap was inside HUD/menu
   if (document.body.classList.contains("ui-lock")) return;
   if (e.target.closest("header, #menuPopup")) return;
 
-  // 2) Don’t resume immediately after a UI closes (shield)
+  // Don’t resume immediately after a UI closes (brief shield)
   if (performance.now() < _resumeBlockUntil) return;
 
-  // 3) If we were paused, resume
+  // If paused, resume
   if (showingPaused && !state.over) {
     overlay.style.display = "none";
     showingPaused = false;
@@ -1030,7 +1036,7 @@ function tryStartOrResume(e){
     return;
   }
 
-  // 4) Otherwise start a fresh run (auth-gated)
+  // Otherwise, start a fresh run (auth-gated)
   if (!window.firebase.auth.currentUser){
     openModal(document.getElementById("authModal"));
     return;
@@ -1378,50 +1384,55 @@ window.addEventListener("pointerup", ()=>{
     startGame();
   }
   startBtn.addEventListener("pointerdown", handleStart);
-  startBtn.addEventListener("click", handleStart);
+  
 
   pauseBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); togglePause(); });
 
+// REPLACE your entire startGame() with this guarded version:
 function startGame(){
-  // Clear world
-  state.blocks.length = 0;
-  state.bullets.length = 0;
-  state.powerups.length = 0;
-  state.coins.length = 0;
+  // Prevent re-entry if two events fire back-to-back
+  if (_starting || state.running) return;
+  _starting = true;
 
-  // Reset timers & flags
+  // ----- World clear/reset -----
+  state.blocks.length   = 0;
+  state.bullets.length  = 0;
+  state.powerups.length = 0;
+  state.coins.length    = 0;
+
+  // Timers/flags
   state.score = 0;
   state.time = 0;
   state.blockTimer = 0;
-  state.powTimer = 2.5;
-  state.coinTimer = 2.5;
+  state.powTimer   = 2.5;
+  state.coinTimer  = 2.5;
   state.difficulty = 1;
   state.over = false;
   state.paused = false;
   state.effects = { shrinkUntil:0, shieldUntil:0, slowUntil:0, magnetUntil:0 };
   state.player.invUntil = 0;
 
-  // Reset per-run values…
+  // Per-run values reset…
   state.ammo = 0;
   state.shrinkCharges = 0;
   state.lives = 0;
 
-  // …then apply anything pre-bought while not in a run (one-time)
+  // …then apply any pre-bought loadout (one-time)
   const nextAmmo   = (loadout.ammo   | 0);
   const nextShrink = (loadout.shrink | 0);
   const nextLives  = (loadout.lives  | 0);
 
-  state.ammo          = (state.ammo | 0) + nextAmmo;
-  state.shrinkCharges = (state.shrinkCharges | 0) + nextShrink;
-  state.lives         = Math.min(5, (state.lives | 0) + nextLives);
+  state.ammo          += nextAmmo;
+  state.shrinkCharges += nextShrink;
+  state.lives          = Math.min(5, state.lives + nextLives);
 
   // Consume the stash so it doesn’t apply twice
-  loadout.ammo = 0;
+  loadout.ammo   = 0;
   loadout.shrink = 0;
-  loadout.lives = 0;
+  loadout.lives  = 0;
 
-  // Sync UI
-  ammoEl.textContent = String(state.ammo);
+  // UI sync
+  ammoEl.textContent        = String(state.ammo);
   shrinkCountEl.textContent = String(state.shrinkCharges);
   renderHearts();
 
@@ -1431,7 +1442,12 @@ function startGame(){
   document.body.classList.remove('overlay-ui','paused-ui');
   state.running = true;
   state.last = performance.now();
-  requestAnimationFrame(loop);
+
+  // Clear the _starting flag once the loop is scheduled
+  requestAnimationFrame(()=>{
+    _starting = false;
+    requestAnimationFrame(loop);
+  });
 }
 
 async function gameOver(){

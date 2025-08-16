@@ -995,6 +995,8 @@ function showWaitingOverlay(){
   overlayTitle.textContent = "DODGER";
   ensureSubtitle().textContent = "Two-finger tap to pause. Tap to start.";
   document.body.classList.add ('overlay-ui');
+  startBtn.textContent = "Start";
+
 }
 
 function showPausedOverlay(){
@@ -1002,6 +1004,7 @@ function showPausedOverlay(){
   overlay.style.display = "flex";
   overlayTitle.textContent = "Paused";
   ensureSubtitle().textContent = "Tap to resume";
+  startBtn.textContent = "Resume" ;
   document.body.classList.add ('overlay-ui');
 }
 
@@ -1016,6 +1019,7 @@ function tryStartOrResume(e){
   // 1) Don’t resume if any UI is open or we’re inside the HUD/menu
   if (document.body.classList.contains("ui-lock")) return;
   if (e.target.closest("header, #menuPopup")) return;
+  if (e.target.closest('#startBtn')) return;
 
   // 2) Don’t resume immediately after a UI closes (shield)
   if (performance.now() < _resumeBlockUntil) return;
@@ -1036,7 +1040,6 @@ function tryStartOrResume(e){
   startGame();
 }
 overlay.addEventListener("pointerdown", tryStartOrResume);
-overlay.addEventListener("click", tryStartOrResume);
 const buyAmmo    = document.getElementById("buyAmmo");
 const buyShrink  = document.getElementById("buyShrink");
 const buyLife    = document.getElementById("buyLife");
@@ -1316,15 +1319,26 @@ renderHearts();
 
   // Start button — support both click and pointerdown, and force sign-in when needed
   function handleStart(e){
-    e.preventDefault();
-    if (!window.firebase.auth.currentUser){
-      document.getElementById("authModal").style.display = "flex";
-      return;
-    }
-    startGame();
+  e.preventDefault();
+
+  // If we're on the pause overlay, make the button RESUME
+  if (showingPaused && state.paused && !state.over) {
+    overlay.style.display = "none";
+    showingPaused = false;
+    togglePause();                 // unpause + continue current run
+    return;
   }
+
+  // Auth gate for brand-new starts
+  if (!window.firebase.auth.currentUser){
+    document.getElementById("authModal").style.display = "flex";
+    return;
+  }
+
+  // Fresh run only when NOT paused
+  startGame();
+}
   startBtn.addEventListener("pointerdown", handleStart);
-  startBtn.addEventListener("click", handleStart);
 
   pauseBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); togglePause(); });
 
@@ -1383,6 +1397,7 @@ function togglePause(){
     showingPaused = false;
     state.last = performance.now();
     requestAnimationFrame(loop);
+    startBtn.textContent = "Resume";
   }
 }
 

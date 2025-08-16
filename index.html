@@ -17,11 +17,96 @@
   canvas { display:block; width:100%; height:100%; }
   .safe { padding-top: env(safe-area-inset-top); }
 
-  /* HUD */
+  /* HUD -*/
   header { position:absolute; top:0; left:0; right:0; z-index:8; display:flex; flex-direction:column; padding:8px 10px; gap:6px; pointer-events:none; }
+  /* allow clicking inside the menu popup */
+#menuPopup,
+#menuPopup .menuItem {
+  pointer-events: auto;
+}
   #hud { --s:0.82; }
+  
+  /* ── HUD scaling across devices ─────────────────────────────────────────── */
+#hud { --s:0.82; }                 /* default */
+@media (max-width:380px){ #hud{ --s:0.72; } }               /* very small */
+@media (min-width:381px) and (max-width:430px){ #hud{ --s:0.80; } } /* common */
+@media (min-width:431px){ #hud{ --s:0.90; } }               /* large phones */
+
+/* keep right chip row on one line; swipe to scroll if cramped */
+header .toolbar .right{
+  flex-wrap:nowrap;
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+}
+header .toolbar .right::-webkit-scrollbar{ display:none; }
+
+/* small gap between the two toolbar rows */
+header .toolbar{ row-gap:calc(6px*var(--s)); }
+
+/* minimum tap size for chips */
+.btn,#coinChip,.hud{
+  min-height:calc(28px*var(--s));
+  padding:calc(6px*var(--s)) calc(10px*var(--s));
+}
+
+/* ── Menu (gear) dropdown ──────────────────────────────────────────────── */
+#menuBtn svg{ vertical-align:-2px; }
+#menuPopup{
+  position:absolute; z-index:12010; display:none;
+  background:rgba(18,24,38,.98);
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:12px; padding:8px; min-width:170px;
+  box-shadow:0 10px 24px rgba(0,0,0,.35);
+}
+#menuPopup .menuItem{
+  width:100%; text-align:left; margin:0; padding:10px 12px;
+  border-radius:10px; border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.04); color:var(--fg); font-weight:700;
+}
+#menuPopup .menuItem + .menuItem{ margin-top:8px; }
+
+/* hide the original toolbar chips we’re moving into the menu */
+.hideOnToolbar{ display:none; }
   .topbar,.toolbar{ display:flex; align-items:center; justify-content:space-between; gap:calc(8px*var(--s)); height:calc(44px*var(--s)); flex-wrap:nowrap; }
   .left,.right{ display:flex; gap:calc(8px*var(--s)); align-items:center; min-width:0; }
+  /* Put Store under the coin chip on the left side of the toolbar */
+header .toolbar .left{
+  flex-direction:column;
+  align-items:flex-start;
+}
+/* Make the toolbar allow tidy wrapping + consistent row gap */
+header .toolbar{
+  align-items:flex-start;       /* align rows to the top */
+  flex-wrap:wrap;               /* allow chips to wrap to a new line */
+  row-gap:calc(6px*var(--s));   /* vertical space between wrapped rows */
+}
+
+/* Right side: lay chips out in rows that wrap nicely */
+header .toolbar .right{
+  flex:1 1 auto;
+  min-width:0;
+  display:flex;
+  flex-wrap:wrap;                      /* allow multiple rows */
+  gap:calc(8px*var(--s));              /* same horizontal gap as topbar */
+  justify-content:flex-start;          /* left-align on small screens */
+}
+
+/* Keep each chip at its natural width */
+header .toolbar .right > .btn{
+  flex:0 0 auto;
+}
+
+/* On wider screens, keep them in one line and push to the right */
+@media (min-width: 680px){
+  header .toolbar{ flex-wrap:nowrap; }
+  header .toolbar .right{ flex-wrap:nowrap; justify-content:flex-end; }
+}
+
+/* Slight downscale on very small phones so more chips fit per row */
+@media (max-width: 380px){
+  #hud{ --s:0.76; }   /* you had 0.82; this makes chips a touch smaller */
+}
   .hud,.btn,#userChip,#coinChip{ pointer-events:auto; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
     border-radius:calc(12px*var(--s)); padding:calc(6px*var(--s)) calc(10px*var(--s)); white-space:nowrap; font-size:calc(14px*var(--s)); line-height:1; }
   .hud{ display:flex; gap:calc(8px*var(--s)); align-items:center; }
@@ -47,20 +132,91 @@
     padding:4px 8px; border-radius:999px; background:rgba(88,166,255,.18);
     border:1px solid rgba(88,166,255,.35);
   }
+  /* Lives (hearts) next to Shrink */
+#lifeBar{
+  pointer-events:none;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  margin-left:10px;
+}
+#lifeBar .heart{
+  font-size:22px;
+  line-height:1;
+  filter:drop-shadow(0 1px 0 rgba(0,0,0,.35));
+}
+#lifeBar .heart.empty{
+  opacity:.35; /* “empty” look */
+}
 
   #abilities{ position:absolute; left:0; right:0; bottom:110px; display:flex; justify-content:center; z-index:6; pointer-events:none; }
   #shrinkBtn{ pointer-events:auto; display:flex; align-items:center; gap:8px; }
   #shrinkCount{ min-width:1.6em; text-align:center; }
 
-  .overlay{ position:absolute; inset:0; z-index:7; display:flex; align-items:center; justify-content:center;
-    background:radial-gradient(1200px 800px at 50% 40%, rgba(88,166,255,.12), rgba(12,15,20,.92) 60%); text-align:center; padding:24px; }
+  /* Start overlay (raised above everything and clickable) */
+  .overlay{
+  position:absolute;
+  inset:0;
+  z-index:9999;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  pointer-events:auto;
+
+  /* Blur & dim */
+  background:rgba(0,0,0,.35);
+  -webkit-backdrop-filter: blur(8px) saturate(1.05);
+  backdrop-filter: blur(8px) saturate(1.05);
+
+  text-align:center;
+  padding:24px;
+}
+
+.overlay .card{
+  background:transparent;
+  border:none;
+  border-radius:0;
+  padding:0;
+  backdrop-filter:none;
+  pointer-events:auto;
+}
+  /* extra safety so button receives events */
+
   .card{ max-width:560px; width:92%; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); border-radius:18px; padding:18px; backdrop-filter:blur(10px); }
   .title{ font-size:26px; font-weight:800; margin:4px 0 10px; }
   .subtitle{ color:var(--muted); margin-bottom:14px; }
   .go{ margin-top:12px; width:100%; padding:12px 14px; font-weight:800; font-size:18px; border-radius:14px; border:none; color:#0b1220; background:var(--accent); }
   .muted{ color:var(--muted); font-size:13px; }
-  .modal{ position:absolute; inset:0; z-index:12; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); padding:18px; }
+  .modal{ position:absolute; inset:0; z-index:12000; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); padding:18px; pointer-events:auto;}
   .panel{ width:min(520px,92%); background:#121826; border:1px solid rgba(255,255,255,.12); border-radius:16px; padding:16px; position:relative; }
+  
+  /* Always show a vertical scrollbar inside these modals */
+#howtoModal .panel,
+#lbModal .panel,
+#storeModal .panel{
+  overflow-y: scroll;      /* always shows the bar */
+  overflow-x: hidden;
+  max-height: min(82vh, 520px);  /* keeps panel usable on short screens */
+  scrollbar-gutter: stable;      /* reserves space so layout doesn't jump */
+}
+
+/* Optional: tidy WebKit scrollbars (Chrome/Safari) */
+#howtoModal .panel::-webkit-scrollbar,
+#lbModal .panel::-webkit-scrollbar,
+#storeModal .panel::-webkit-scrollbar{ width: 10px; }
+
+#howtoModal .panel::-webkit-scrollbar-track,
+#lbModal .panel::-webkit-scrollbar-track,
+#storeModal .panel::-webkit-scrollbar-track{ background: rgba(255,255,255,.06); border-radius: 8px; }
+
+#howtoModal .panel::-webkit-scrollbar-thumb,
+#lbModal .panel::-webkit-scrollbar-thumb,
+#storeModal .panel::-webkit-scrollbar-thumb{
+  background: rgba(255,255,255,.22);
+  border-radius: 8px;
+  border: 2px solid rgba(0,0,0,0); /* gives a bit of padding/rounding */
+}
+  
   .panel h2{ margin:4px 0 12px; font-size:20px; }
   .grid{ display:grid; gap:10px; }
   .grid input{ width:100%; padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,.15); background:#0f141f; color:var(--fg); }
@@ -76,54 +232,213 @@
   #lbTable td:nth-child(1){ width:32px; color:var(--muted); }
   #lbTable td:nth-child(3){ width:90px; text-align:right; }
   #lbTable td:nth-child(4){ width:96px; color:var(--muted); }
+  /* Store item layout + coin size */
+.itemBtn{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  text-align:left;
+}
+.itemBtn .emoji{ font-size:18px; margin-right:6px; }
+.itemBtn .label{ flex:1; display:flex; align-items:center; gap:8px; }
+.itemBtn .cost{ display:flex; align-items:center; gap:6px; font-weight:800; }
+.itemBtn .coinMini{ width:16px; height:16px; flex:0 0 auto; }
+/* Small inline coins everywhere (how-to, lists, text) */
+.coinMini{
+  width:18px;            /* pick 14–20px to taste */
+  height:18px;
+  vertical-align:-2px;   /* lines up nicely with text */
+  display:inline-block;  /* prevents odd line breaks in some browsers */
+  flex:0 0 auto;
+}
+/* How-to modal tweaks */
+/* How-to modal: always show vertical scrollbar */
+#howtoModal .panel{
+  display:flex;                 /* keep header fixed, content scrolls */
+  flex-direction:column;
+  max-height:min(86vh, 640px);  /* fit on small screens */
+}
+
+#howtoModal .panel .grid{
+  flex:1 1 auto;
+  overflow-y: scroll;           /* always show scrollbar (even if short) */
+  scrollbar-gutter: stable;     /* reserve space so layout doesn’t shift */
+  -webkit-overflow-scrolling: touch;
+  padding-right:6px;            /* avoid clipping under the scrollbar */
+  max-height:none;
+}
+
+/* Optional: theme the scrollbar to match your UI */
+#howtoModal .panel .grid{
+  scrollbar-width: thin;                                  /* Firefox */
+  scrollbar-color: rgba(255,255,255,.18) rgba(255,255,255,.06);
+}
+#howtoModal .panel .grid::-webkit-scrollbar{ width:10px; }          /* WebKit */
+#howtoModal .panel .grid::-webkit-scrollbar-thumb{
+  background: rgba(255,255,255,.18);
+  border-radius:8px;
+  border:1px solid rgba(255,255,255,.12);
+}
+#howtoModal .panel .grid::-webkit-scrollbar-track{
+  background: rgba(255,255,255,.06);
+  border-radius:8px;
+}
+.howtoList { margin:8px 0 0; padding-left:18px; }
+.howtoList li { margin:6px 0; }
+/* Right cluster can scroll a bit if tight */
+header .toolbar .right{
+  flex-wrap:nowrap;
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+}
+header .toolbar .right::-webkit-scrollbar{ display:none; }
+
+/* Hide on toolbar, but still available in dropdown */
+.hideOnToolbar{ display:none; }
+
+/* Menu popup */
+#menuPopup{
+  position:absolute; z-index:12010; display:none;
+  background:rgba(18,24,38,.98);
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:12px; padding:8px; min-width:170px;
+  box-shadow:0 10px 24px rgba(0,0,0,.35);
+}
+#menuPopup .menuItem{
+  width:100%; text-align:left; margin:0; padding:10px 12px;
+  border-radius:10px; border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.04); color:var(--fg); font-weight:700;
+}
+#menuPopup .menuItem + .menuItem{ margin-top:8px; }
+
+#gameOverText small {
+  display: block;
+  margin-top: 5px;
+  font-size: 0.8em;
+  color: #ccc;
+}
+/* When paused, let the HUD sit above the overlay so chips are tappable */
+.paused-ui header{ z-index:12060; }
+.paused-ui #menuPopup{ z-index:12060; } /* keep popup above everything */
+
+/* Keep HUD & menu above ANY overlay (waiting / paused / game over) */
+.overlay-ui header{ z-index:12060; }
+.overlay-ui #menuPopup{ z-index:12070; } /* popup above the header */
+
+/* Game wrapper: contains the canvas + controls + overlay */
+#stage{
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden; /* keep overlay/canvas neatly clipped */
+}
+
+/* All overlays INSIDE the stage blur only the game */
+#stage .overlay{
+  position: absolute;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+
+  /* nice dim + blur the game behind */
+  background: rgba(0,0,0,.35);
+  -webkit-backdrop-filter: blur(8px) saturate(1.05);
+  backdrop-filter: blur(8px) saturate(1.05);
+
+  text-align: center;
+  padding: 24px;
+}
+
+/* Keep the card itself crisp & clickable */
+#stage .overlay .card{
+  pointer-events: auto;
+}
+/* Game wrapper: contains the canvas + controls + overlay */
+#stage{
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden; /* keep overlay/canvas neatly clipped */
+}
+
+/* All overlays INSIDE the stage blur only the game */
+#stage .overlay{
+  position: absolute;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+
+  /* dim + blur so colors still show through */
+  background: rgba(0,0,0,.35);
+  -webkit-backdrop-filter: blur(8px) saturate(1.05);
+  backdrop-filter: blur(8px) saturate(1.05);
+
+  text-align: center;
+  padding: 24px;
+}
+
+/* Keep the card itself crisp & clickable */
+#stage .overlay .card{
+  pointer-events: auto;
+}
+
+/* Overlay typography */
+.overlay .title{
+  font-size:32px;
+  font-weight:800;
+  color:#fff;
+  letter-spacing:.2px;
+  text-shadow:0 1px 0 rgba(0,0,0,.35);
+  margin:0 0 8px;
+}
+.overlay .subtitle{
+  color:rgba(233,239,255,.88);
+  font-size:15px;
+  margin:0;
+}
 </style>
 </head>
 <body class="safe">
+  <!-- Hidden SVG sprite: tiny D coin we can <use> anywhere -->
+<svg aria-hidden="true" width="0" height="0" style="position:absolute;left:-9999px;visibility:hidden">
+  <defs>
+    <radialGradient id="cgStore" cx="40%" cy="35%" r="65%">
+      <stop offset="0%"   stop-color="#ffe38a"/>
+      <stop offset="55%"  stop-color="#f5c240"/>
+      <stop offset="100%" stop-color="#c68a12"/>
+    </radialGradient>
+
+    <symbol id="dcoin" viewBox="0 0 64 64">
+      <circle cx="32" cy="32" r="22" fill="url(#cgStore)"/>
+      <circle cx="32" cy="32" r="22" fill="none" stroke="#000" stroke-opacity=".25" stroke-width="2"/>
+      <g fill="#000" fill-opacity=".28">
+        <circle cx="32" cy="10" r="2"/><circle cx="45" cy="14" r="2"/><circle cx="52" cy="26" r="2"/>
+        <circle cx="52" cy="38" r="2"/><circle cx="45" cy="50" r="2"/><circle cx="32" cy="54" r="2"/>
+        <circle cx="19" cy="50" r="2"/><circle cx="12" cy="38" r="2"/><circle cx="12" cy="26" r="2"/><circle cx="19" cy="14" r="2"/>
+      </g>
+      <circle cx="32" cy="32" r="13" fill="#000" fill-opacity=".15"/>
+      <text x="32" y="38" text-anchor="middle" font-size="18" font-weight="800" fill="#2b1900">D</text>
+    </symbol>
+  </defs>
+</svg>
+<div id="stage">
 <canvas id="game" aria-label="Dodger game area"></canvas>
 
-<header class="safe" id="hud">
-  <div class="topbar">
-    <div class="left">
-      <div class="hud"><strong>Score:</strong><span id="score">0</span></div>
-      <div class="hud"><strong>Best:</strong><span id="best">0</span></div>
-      <div class="hud"><strong>Lives:</strong><span id="lives" class="ammo">0</span></div>
-    </div>
-    <div class="right">
-      <div id="userChip">Not signed in</div>
-    </div>
-  </div>
 
-  <div class="toolbar">
-    <div class="left">
-      <div id="coinChip" title="Coins">
-        <svg viewBox="0 0 64 64" aria-hidden="true">
-          <defs><radialGradient id="cg" cx="40%" cy="35%" r="65%">
-            <stop offset="0%" stop-color="#ffe38a"/><stop offset="55%" stop-color="#f5c240"/><stop offset="100%" stop-color="#c68a12"/>
-          </radialGradient></defs>
-          <circle cx="32" cy="32" r="22" fill="url(#cg)"/>
-          <circle cx="32" cy="32" r="22" fill="none" stroke="#000" stroke-opacity=".25" stroke-width="2"/>
-          <g fill="#000" fill-opacity=".28">
-            <circle cx="32" cy="10" r="2"/><circle cx="45" cy="14" r="2"/><circle cx="52" cy="26" r="2"/>
-            <circle cx="52" cy="38" r="2"/><circle cx="45" cy="50" r="2"/><circle cx="32" cy="54" r="2"/>
-            <circle cx="19" cy="50" r="2"/><circle cx="12" cy="38" r="2"/><circle cx="12" cy="26" r="2"/><circle cx="19" cy="14" r="2"/>
-          </g>
-          <circle cx="32" cy="32" r="13" fill="#000" fill-opacity=".15"/>
-          <text x="32" y="38" text-anchor="middle" font-size="18" font-weight="800" fill="#2b1900">D</text>
-        </svg>
-        <span id="coinCount">0</span>
-      </div>
-    </div>
-    <div class="right">
-      <button class="btn" id="lbBtn">Leaderboard</button>
-      <button class="btn" id="nameBtn">Set name</button>
-      <button class="btn" id="authBtn">Account</button>
-      <button class="btn" id="pauseBtn" aria-label="Pause or resume">Pause</button>
-    </div>
-  </div>
-</header>
 
 <!-- Ability bar -->
-<div id="abilities"><button id="shrinkBtn" class="btn">✂ Shrink <span id="shrinkCount" class="ammo">0</span></button></div>
+<div id="abilities">
+  <button id="shrinkBtn" class="btn">✂ Shrink <span id="shrinkCount" class="ammo">0</span></button>
+  <div id="lifeBar" aria-label="Lives"></div>
+</div>
 
 <!-- Controls -->
 <div class="controls">
@@ -146,6 +461,84 @@
     <div class="muted">Tip: Add to Home Screen on iPhone for full-screen play.</div>
   </div>
 </div>
+</div>
+
+<header class="safe" id="hud">
+  <div class="topbar">
+    <div class="left">
+      <div class="hud"><strong>Score:</strong><span id="score">0</span></div>
+      <div class="hud"><strong>Best:</strong><span id="best">0</span></div>
+      
+    </div>
+    <div class="right">
+      <div id="userChip">Not signed in</div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <div class="left">
+  <div id="coinChip" title="Coins">
+  <svg viewBox="0 0 64 64" aria-hidden="true">
+    <defs>
+      <radialGradient id="cg" cx="40%" cy="35%" r="65%">
+        <stop offset="0%"   stop-color="#ffe38a"/>
+        <stop offset="55%"  stop-color="#f5c240"/>
+        <stop offset="100%" stop-color="#c68a12"/>
+      </radialGradient>
+    </defs>
+
+    <circle cx="32" cy="32" r="22" fill="url(#cg)"/>
+    <circle cx="32" cy="32" r="22" fill="none" stroke="#000" stroke-opacity=".25" stroke-width="2"/>
+
+    <g fill="#000" fill-opacity=".28">
+      <circle cx="32" cy="10" r="2"/>
+      <circle cx="45" cy="14" r="2"/>
+      <circle cx="52" cy="26" r="2"/>
+      <circle cx="52" cy="38" r="2"/>
+      <circle cx="45" cy="50" r="2"/>
+      <circle cx="32" cy="54" r="2"/>
+      <circle cx="19" cy="50" r="2"/>
+      <circle cx="12" cy="38" r="2"/>
+      <circle cx="12" cy="26" r="2"/>
+      <circle cx="19" cy="14" r="2"/>
+    </g>
+
+    <circle cx="32" cy="32" r="13" fill="#000" fill-opacity=".15"/>
+    <text x="32" y="38" text-anchor="middle" font-size="18" font-weight="800" fill="#2b1900">D</text>
+  </svg>
+  <span id="coinCount">0</span>
+</div>
+
+  <!-- Store chip -->
+  <button id="storeBtn" class="btn" title="Open store">Store</button>
+</div>
+    <div class="right">
+  <button class="btn" id="lbBtn">Leaderboard</button>
+  <button class="btn" id="howtoBtn">How to play</button>
+
+  <!-- ▼ New gear Menu button -->
+  <button class="btn" id="menuBtn" title="Menu">
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24">
+      <path fill="currentColor"
+        d="M12 8.75a3.25 3.25 0 1 0 0 6.5a3.25 3.25 0 0 0 0-6.5Zm9 3.25l-1.86.78c-.13.41-.3.8-.5 1.17l.99 1.74-1.41 1.41-1.74-.99c-.37.2-.76.37-1.17.5L14.5 21h-2.99l-.78-1.86a7.1 7.1 0 0 1-1.17-.5l-1.74.99-1.41-1.41.99-1.74a7.1 7.1 0 0 1-.5-1.17L3 12V9.01l1.86-.78c.13-.41.3-.8.5-1.17L4.37 5.32 5.78 3.9l1.74.99c.37-.2.76-.37 1.17-.5L11.51 2h2.99l.78 1.86c.41.13.8.3 1.17.5l1.74-.99 1.41 1.41-.99 1.74c.2.37.37.76.5 1.17L21 9.01V12Z"/>
+    </svg>
+    Menu
+  </button>
+  <!-- ▲ New gear Menu button -->
+
+  <!-- Keep these in DOM but hide them on the toolbar (CSS will hide .hideOnToolbar) -->
+  <button class="btn hideOnToolbar" id="nameBtn">Set name</button>
+  <button class="btn hideOnToolbar" id="authBtn">Account</button>
+
+  <button class="btn" id="pauseBtn" aria-label="Pause or resume">Pause</button>
+</div>
+<!-- Dropdown that opens under the Menu button -->
+<div id="menuPopup" role="menu" aria-label="Menu">
+  <button class="menuItem" id="menuNameBtn">Set name</button>
+  <button class="menuItem" id="menuAccountBtn">Account</button>
+</div>
+  </div>
+</header>
 
 <!-- Name modal -->
 <div class="modal" id="nameModal">
@@ -165,12 +558,65 @@
 <div class="modal" id="lbModal">
   <div class="panel">
     <button class="x" id="lbClose">×</button>
-    <h2>Global Leaderboard (Top 20)</h2>
+    <h2>Global Leaderboard (Top 100)</h2>
     <table id="lbTable">
       <thead><tr><th style="text-align:left;">#</th><th style="text-align:left;">Name</th><th>Score</th><th>When</th></tr></thead>
       <tbody></tbody>
     </table>
     <div class="muted">Finish a run to submit your score.</div>
+  </div>
+</div>
+
+<!-- How to play modal -->
+<div class="modal" id="howtoModal">
+  <div class="panel">
+    <button class="x" id="howtoClose">×</button>
+    <h2>How to play</h2>
+
+    <div class="grid" style="gap:14px;">
+      <div>
+        <strong>Move left/right</strong>
+        <ul class="howtoList">
+          <li><strong>Tap</strong> the left ⟵ or right ⟶ pads.</li>
+          <li><strong>Swipe/slide</strong> on the game area to drift your square.</li>
+        </ul>
+      </div>
+
+      <div>
+        <strong>Fire blaster</strong>
+        <ul class="howtoList">
+          <li>Press <strong>FIRE</strong> (or spacebar) when you have ammo 🔫.</li>
+          <li>Bullets destroy red blocks and add points.</li>
+        </ul>
+      </div>
+
+      <div>
+        <strong>Power-ups</strong>
+        <ul class="howtoList">
+          <li>🔫 <em>Blaster</em>: +6 ammo.</li>
+          <li>✂️ <em>Shrink</em>: temporarily smaller and harder to hit. Tap <strong>✂ Shrink</strong> to use.</li>
+          <li>🛡 <em>Shield</em>: one hit protection for a short time.</li>
+          <li>🐌 <em>Slow</em>: slows falling blocks briefly.</li>
+          <li>🧲 <em>Magnet</em>: pulls power-ups toward you.</li>
+          <li>❤️ <em>Life</em>: +1 extra life (max 5).</li>
+        </ul>
+      </div>
+
+      <div>
+        <strong>Coins & Store</strong>
+        <ul class="howtoList">
+          <li>Collect <svg class="coinMini" style="vertical-align:-2px;"><use href="#dcoin"></use></svg> coins while you play.</li>
+          <li>Open <strong>Store</strong> to buy:
+            <ul class="howtoList">
+              <li>🔫 Ammo (+6) — <span class="num">5</span> <svg class="coinMini"><use href="#dcoin"></use></svg></li>
+              <li>✂️ Shrink charge (+1) — <span class="num">8</span> <svg class="coinMini"><use href="#dcoin"></use></svg></li>
+              <li>❤️ Life (+1) — <span class="num">10</span> <svg class="coinMini"><use href="#dcoin"></use></svg></li>
+            </ul>
+          </li>
+          <li>Purchases apply to the current run.</li>
+        </ul>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -194,6 +640,40 @@
     </div>
     <div style="margin-top:6px; display:flex; justify-content:flex-end;">
       <button class="small" id="authForgot">Forgot password?</button>
+    </div>
+  </div>
+</div>
+
+<!-- Store modal -->
+<div class="modal" id="storeModal">
+  <div class="panel">
+    <button class="x" id="storeClose">×</button>
+    <h2>Store</h2>
+
+    <div id="storeMsg" class="muted" style="margin-bottom:8px;"></div>
+
+  <div class="grid">
+  <button class="btn2 itemBtn" id="buyAmmo" title="Buy blaster ammo">
+    <span class="emoji">🔫</span>
+    <span class="label"><strong>Buy Blaster</strong> ammo (+6)</span>
+    <span class="cost"><span class="num">5</span><svg class="coinMini"><use href="#dcoin"></use></svg></span>
+  </button>
+
+  <button class="btn2 itemBtn" id="buyShrink" title="Buy a shrink charge">
+    <span class="emoji">✂️</span>
+    <span class="label"><strong>Buy Shrink</strong> charge (+1)</span>
+    <span class="cost"><span class="num">8</span><svg class="coinMini"><use href="#dcoin"></use></svg></span>
+  </button>
+
+  <button class="btn2 itemBtn" id="buyLife" title="Buy one life">
+    <span class="emoji">❤️</span>
+    <span class="label"><strong>Buy Life</strong> (+1)</span>
+    <span class="cost"><span class="num">10</span><svg class="coinMini"><use href="#dcoin"></use></svg></span>
+  </button>
+</div>
+
+    <div class="muted" style="margin-top:10px;">
+      Purchases apply to the current run. (Persistent lives coming soon.)
     </div>
   </div>
 </div>
@@ -334,23 +814,34 @@
   const startSub = document.getElementById("startSub");
 
   onAuthStateChanged(auth, async (u)=>{
-    if (!u){
-      userChip.textContent = "Not signed in";
-      coinCountEl.textContent = "0";
-      await window.firebase.watchWallet(null, null);
-      startSub.textContent = "Sign in to play and save coins.";
-      startBtn.textContent = "Sign in";
-      return;
-    }
-    userChip.textContent = u.displayName ? `Signed in: ${u.displayName}` :
-                           u.email ? `Signed in: ${u.email}` : "Signed in";
-    await window.firebase.watchWallet(u.uid, (coins)=>{ coinCountEl.textContent = String(coins); });
-    startSub.textContent = "Avoid blocks. Power-ups: 🔫 Blaster, ✂ Shrink, 🛡 Shield, 🐌 Slow, 🧲 Magnet, ❤️ Life.";
-    startBtn.textContent = "Start";
-  });
+  if (!u){
+    userChip.textContent = "Not signed in";
+    coinCountEl.textContent = "0";
+    await window.firebase.watchWallet(null, null);
+    // Keep the simple, non-emoji message
+    startSub.textContent = "Two-finger tap to pause. Tap to start.";
+    startBtn.textContent = "Sign in";
+    return;
+  }
 
-  function openModal(m){ m.style.display="flex"; }
-  function closeModal(m){ m.style.display="none"; }
+  userChip.textContent = u.displayName ? `Signed in: ${u.displayName}` :
+                         u.email ? `Signed in: ${u.email}` : "Signed in";
+  await window.firebase.watchWallet(u.uid, (coins)=>{ coinCountEl.textContent = String(coins); });
+
+  // Keep the same non-emoji message even when signed in
+  startSub.textContent = "Two-finger tap to pause. Tap to start.";
+  startBtn.textContent = "Start";
+});
+
+  function openModal(m){
+  m.style.display = "flex";
+  document.body.classList.add("ui-lock");
+}
+function closeModal(m){
+  m.style.display = "none";
+  document.body.classList.remove("ui-lock");
+  window.blockResume?.();              // brief shield so the close tap can't resume
+}
 
   document.querySelectorAll(".modal").forEach(m=>{
     m.addEventListener("pointerdown", (e)=>{ if(e.target === m) closeModal(m); }, {passive:true});
@@ -405,37 +896,42 @@
 <script>
 (function () {
   "use strict";
+  // --- Spawn tuning (independent) ---
+let COIN_CHANCE = 0.55;            // 0..1 chance when coin timer fires
+let COIN_INTERVAL_MIN = 6, COIN_INTERVAL_MAX = 10;      // seconds
+
+let POWERUP_INTERVAL_MIN = 8, POWERUP_INTERVAL_MAX = 13; // seconds
 
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d", { alpha:false, desynchronized:true });
 
-  // --- Keep player above bottom UI ---
-  let width=0, height=0, dpr=Math.max(1, window.devicePixelRatio||1);
-  let uiBottom = 140; // dynamic clearance for controls + abilities
-
+  // Reserve vertical space for bottom UI so the player can't sit under it
+  let uiBottom = 140;
   function measureUIBottom(){
-    const controls = document.querySelector('.controls');
-    const ch = controls ? controls.getBoundingClientRect().height : 0;
-    const pad = 28; // cushion
-    // abilities bar uses bottom:110px; add some extra space on top of that
-    uiBottom = Math.max(110 + 40, ch + pad);
+    const controls  = document.querySelector('.controls');
+    const abilities = document.getElementById('abilities');
+    let occ = 0;
+    if (controls){
+      const r = controls.getBoundingClientRect();
+      occ = Math.max(occ, Math.ceil(r.height || 0));
+    }
+    if (abilities){
+      const r = abilities.getBoundingClientRect();
+      const fromBottom = Math.max(0, Math.ceil(window.innerHeight - r.top));
+      occ = Math.max(occ, fromBottom);
+    }
+    uiBottom = Math.max(occ + 16, 120);
   }
 
+  let width=0, height=0, dpr=Math.max(1, window.devicePixelRatio||1);
   function fit(){
-    measureUIBottom();
     width=Math.max(320,Math.floor(window.innerWidth||document.documentElement.clientWidth));
     height=Math.max(480,Math.floor(window.innerHeight||document.documentElement.clientHeight));
     dpr=Math.max(1, window.devicePixelRatio||1);
     canvas.width=Math.floor(width*dpr); canvas.height=Math.floor(height*dpr);
     canvas.style.width=width+"px"; canvas.style.height=height+"px";
     ctx.setTransform(dpr,0,0,dpr,0,0);
-
-    // if already initialized, keep player perched on the new floor
-    if (state) {
-      const ph = state.player.h * state.player.scale;
-      const floorY = height - uiBottom - ph - 10;
-      state.player.y = Math.min(state.player.y, floorY);
-    }
+    measureUIBottom();
   }
   fit(); window.addEventListener("resize", fit);
 
@@ -463,14 +959,203 @@
   const lbBody = document.querySelector("#lbTable tbody");
   const shrinkBtn = document.getElementById("shrinkBtn");
   const shrinkCountEl = document.getElementById("shrinkCount");
+  // MENU (gear)
+const menuBtn        = document.getElementById("menuBtn");
+const menuPopup      = document.getElementById("menuPopup");
+const menuNameBtn    = document.getElementById("menuNameBtn");
+const menuAccountBtn = document.getElementById("menuAccountBtn");
+  // Store UI
+const storeBtn   = document.getElementById("storeBtn");
+const storeModal = document.getElementById("storeModal");
+const storeClose = document.getElementById("storeClose");
+const storeMsg   = document.getElementById("storeMsg");
+// ── Start/Pause overlay helpers ──────────────────────────────────────────
+const overlayCard  = document.querySelector("#overlay .card");
+const overlayTitle = document.querySelector("#overlay .title");
+let showingPaused  = false;
+// Prevents accidental resume for ~250ms after closing any UI
+let _resumeBlockUntil = 0;
+window.blockResume = function(ms = 250){
+  _resumeBlockUntil = performance.now() + ms;
+};
 
-  // Only block touch gestures on gameplay surfaces, not overlays/modals
-  const prevent=(e)=>{ if (e.target.closest(".overlay") || e.target.closest(".modal")) return; e.preventDefault(); };
-  ["touchstart","touchmove","touchend","gesturestart"].forEach(ev=>document.addEventListener(ev, prevent, { passive:false }));
+function ensureSubtitle(){
+  let sub = document.querySelector("#overlay .subtitle");
+  if (!sub) {
+    sub = document.createElement("div");
+    sub.className = "subtitle";
+    overlayCard.appendChild(sub);
+  }
+  return sub;
+}
+
+function showWaitingOverlay(){
+  showingPaused = false;
+  overlay.style.display = "flex";
+  overlayTitle.textContent = "DODGER";
+  ensureSubtitle().textContent = "Two-finger tap to pause. Tap to start.";
+  document.body.classList.add ('overlay-ui');
+}
+
+function showPausedOverlay(){
+  showingPaused = true;
+  overlay.style.display = "flex";
+  overlayTitle.textContent = "Paused";
+  ensureSubtitle().textContent = "Tap to resume";
+  document.body.classList.add ('overlay-ui');
+}
+
+// Start with the waiting screen visible
+showWaitingOverlay();
+
+// Tap anywhere on the overlay: start or resume
+// Tap anywhere on the overlay: start or resume
+function tryStartOrResume(e){
+  e.preventDefault();
+
+  // 1) Don’t resume if any UI is open or we’re inside the HUD/menu
+  if (document.body.classList.contains("ui-lock")) return;
+  if (e.target.closest("header, #menuPopup")) return;
+
+  // 2) Don’t resume immediately after a UI closes (shield)
+  if (performance.now() < _resumeBlockUntil) return;
+
+  // 3) If we were paused, resume
+  if (showingPaused && !state.over) {
+    overlay.style.display = "none";
+    showingPaused = false;
+    if (state.paused) togglePause();  // unpause + restart loop
+    return;
+  }
+
+  // 4) Otherwise start a fresh run (auth-gated)
+  if (!window.firebase.auth.currentUser){
+    openModal(document.getElementById("authModal"));
+    return;
+  }
+  startGame();
+}
+overlay.addEventListener("pointerdown", tryStartOrResume);
+overlay.addEventListener("click", tryStartOrResume);
+const buyAmmo    = document.getElementById("buyAmmo");
+const buyShrink  = document.getElementById("buyShrink");
+const buyLife    = document.getElementById("buyLife");
+const howtoBtn   = document.getElementById("howtoBtn");
+const howtoModal = document.getElementById("howtoModal");
+const howtoClose = document.getElementById("howtoClose");
+
+howtoBtn.addEventListener("pointerdown", e => {
+  e.preventDefault();
+  howtoModal.style.display = "flex";
+});
+
+howtoClose.addEventListener("pointerdown", e => {
+  e.preventDefault();
+  closeModal(howtoModal);
+});
+
+// Open the store (require sign-in)
+storeBtn.addEventListener("pointerdown", (e)=>{
+  e.preventDefault();
+  if (!window.firebase.auth.currentUser){
+    // Force sign-in first
+    document.getElementById("authModal").style.display = "flex";
+    return;
+  }
+  storeMsg.textContent = ""; // clear old message
+  storeMsg.style.color = "var(--muted)";
+  storeModal.style.display = "flex";
+});
+
+// Close the store
+
+storeClose.addEventListener("pointerdown", (e)=>{
+  e.preventDefault();
+  closeModal(storeModal);
+});
+function getCoins(){
+  // coinCountEl is kept live by wallet listener in the Firebase script
+  return (Number(coinCountEl.textContent || "0") | 0);
+}
+
+async function spendCoins(cost){
+  if (!window.firebase.auth.currentUser) throw new Error("Sign in to buy.");
+  const have = getCoins();
+  if (have < cost) throw new Error(`You need ${cost} coins (you have ${have}).`);
+  // Deduct via Firestore (server-side authoritative)
+  await window.firebase.addCoins(-cost);
+}
+
+function flashStoreMsg(text, ok=true){
+  storeMsg.textContent = text;
+  storeMsg.style.color = ok ? "var(--fg)" : "var(--danger)";
+}
+buyAmmo.addEventListener("pointerdown", async (e)=>{
+  e.preventDefault();
+  try{
+    await spendCoins(5);
+    state.ammo += 6;
+    ammoEl.textContent = state.ammo;
+    flashStoreMsg("Purchased +6 ammo.");
+  }catch(err){
+    flashStoreMsg(err.message || String(err), false);
+  }
+});
+
+buyShrink.addEventListener("pointerdown", async (e)=>{
+  e.preventDefault();
+  try{
+    await spendCoins(8);
+    state.shrinkCharges += 1;
+    shrinkCountEl.textContent = state.shrinkCharges;
+    flashStoreMsg("Purchased +1 shrink charge.");
+  }catch(err){
+    flashStoreMsg(err.message || String(err), false);
+  }
+});
+
+buyLife.addEventListener("pointerdown", async (e)=>{
+  e.preventDefault();
+  try{
+    await spendCoins(10);
+    state.lives = Math.min(5, state.lives + 1);
+    renderHearts();
+    flashStoreMsg("Purchased +1 life.");
+  }catch(err){
+    flashStoreMsg(err.message || String(err), false);
+  }
+});
+const lifeBar = document.getElementById("lifeBar");
+function renderHearts(){
+  if (!lifeBar) return;
+  const max = 5;
+  const out = [];
+  for (let i = 0; i < max; i++){
+    const filled = i < state.lives;
+    out.push(`<span class="heart${filled ? "" : " empty"}">${filled ? "❤️" : "🤍"}</span>`);
+  }
+  lifeBar.innerHTML = out.join("");
+}
+  
+  const prevent = (e) => { 
+  if (
+    e.target.closest(".overlay") ||
+    e.target.closest(".modal")   ||
+    e.target.closest("#menuPopup") // ✅ allow touches inside menu popup
+  ) return;
+  e.preventDefault();
+};
+["touchstart","touchmove","touchend","gesturestart"].forEach(ev => 
+  document.addEventListener(ev, prevent, { passive:false })
+);
 
   // Name modal
   nameBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); nameModal.style.display="flex"; });
-  [nameClose,cancelName].forEach(el=>el.addEventListener("pointerdown", e=>{ e.preventDefault(); nameModal.style.display="none"; }));
+
+[nameClose,cancelName].forEach(el=>el.addEventListener("pointerdown", e=>{
+  e.preventDefault();
+  closeModal(nameModal);
+}));
   saveName.addEventListener("pointerdown", async e=>{
     e.preventDefault();
     const dn = await window.firebase?.setDisplayName?.(nameInput.value||"Player");
@@ -483,7 +1168,7 @@
     e.preventDefault();
     lbBody.innerHTML = "<tr><td colspan='4'>Loading…</td></tr>";
     try{
-      const rows = await window.firebase.loadTop(20);
+      const rows = await window.firebase.loadTop(100);
       if (!rows.length) {
         lbBody.innerHTML = "<tr><td colspan='4'>No scores yet.</td></tr>";
       } else {
@@ -506,8 +1191,68 @@
     }
     lbModal.style.display="flex";
   });
-  lbClose.addEventListener("pointerdown", e=>{ e.preventDefault(); lbModal.style.display="none"; });
-  function escapeHtml(x){ return (x||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;"," >":"&gt;","\"":"&quot;","'":"&#39;" }[m])); }
+  lbClose.addEventListener("pointerdown", e=>{
+  e.preventDefault();
+  closeModal(lbModal);
+});
+  function escapeHtml(x){ return (x||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m])); }
+  
+  // ── Menu dropdown logic
+function positionMenuPopup(){
+  const r = menuBtn.getBoundingClientRect();
+  menuPopup.style.left = Math.round(r.left) + "px";
+  menuPopup.style.top  = Math.round(r.bottom + 6) + "px";
+}
+function openMenu(){
+  positionMenuPopup();
+  menuPopup.style.display = "block";
+  menuBtn.setAttribute("aria-expanded", "true");
+}
+function closeMenu(){
+  menuPopup.style.display = "none";
+  menuBtn.setAttribute("aria-expanded", "false");
+  window.blockResume?.();  // brief shield so that close tap doesn’t resume
+}
+
+menuBtn.addEventListener("pointerdown", (e)=>{
+  e.preventDefault();
+  const open = menuPopup.style.display === "block";
+  if (open) closeMenu(); else openMenu();
+});
+
+// click outside to close
+document.addEventListener("pointerdown", (e)=>{
+  if (!menuPopup.contains(e.target) && e.target !== menuBtn){
+    closeMenu();
+  }
+}, {passive:true});
+
+// Esc closes
+document.addEventListener("keydown", (e)=>{
+  if (e.key === "Escape") closeMenu();
+});
+
+// Keep popup anchored on rotate/resize
+window.addEventListener("resize", ()=>{
+  if (menuPopup.style.display === "block") positionMenuPopup();
+});
+
+// Menu items forward to your existing modals
+// One delegated handler for all items in the popup
+menuPopup.addEventListener("pointerdown", (e)=>{
+  const item = e.target.closest(".menuItem");
+  if (!item) return;
+
+  e.preventDefault();
+  e.stopPropagation();           // don't let the outside-click listener fire
+  closeMenu();
+
+  if (item.id === "menuNameBtn") {
+    document.getElementById("nameModal").style.display = "flex";
+  } else if (item.id === "menuAccountBtn") {
+    document.getElementById("authModal").style.display = "flex";
+  }
+});
 
   // Game state
   const state = {
@@ -520,30 +1265,34 @@
     bullets:[],
     ammo:0, lives:0, shrinkCharges:0,
     powerups:[], powTimer:2.5,
+    coinTimer:3.5,
     effects:{ shrinkUntil:0, shieldUntil:0, slowUntil:0, magnetUntil:0 },
     coins:[]
+    
   };
-  bestEl.textContent = state.best; ammoEl.textContent = state.ammo; livesEl.textContent = state.lives; shrinkCountEl.textContent = state.shrinkCharges;
+  bestEl.textContent = state.best;
+ammoEl.textContent = state.ammo;
+shrinkCountEl.textContent = state.shrinkCharges;
+renderHearts();
 
   function resetPlayer(){
     const base = Math.max(36, Math.min(56, Math.floor(Math.min(width,height)*0.06)));
     state.player.w = base; state.player.h = base;
+    state.player.vx = 0; state.player.scale = 1;
+
     const pw = state.player.w * state.player.scale;
     const ph = state.player.h * state.player.scale;
-    const floorY = height - uiBottom - ph - 10; // sit above controls & abilities
+    const floorY = height - uiBottom - ph - 10; // keep above controls/abilities
+
     state.player.x = (width - pw)/2;
-    state.player.y = floorY;
-    state.player.vx = 0; state.player.scale=1;
+    state.player.y = Math.max(0, floorY);
   }
   resetPlayer();
 
   // Input
-  function bindPad(el,dir){
-    const down=(e)=>{ e.preventDefault(); if(dir<0) state.input.left=true; else state.input.right=true; };
+  function bindPad(el,dir){ const down=(e)=>{ e.preventDefault(); if(dir<0) state.input.left=true; else state.input.right=true; };
     const up=(e)=>{ if(dir<0) state.input.left=false; else state.input.right=false; };
-    el.addEventListener("pointerdown", down); el.addEventListener("pointerup", up);
-    el.addEventListener("pointercancel", up); el.addEventListener("pointerleave", up);
-  }
+    el.addEventListener("pointerdown", down); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up); el.addEventListener("pointerleave", up); }
   bindPad(leftPad,-1); bindPad(rightPad,1);
 
   let swipeActive=false, swipeStartX=0;
@@ -565,48 +1314,77 @@
     if(e.key==="ArrowRight"||e.key==="d") state.input.right=false;
   });
 
-  // Force sign-in on Start
-  startBtn.addEventListener("pointerdown", e=>{
+  // Start button — support both click and pointerdown, and force sign-in when needed
+  function handleStart(e){
     e.preventDefault();
     if (!window.firebase.auth.currentUser){
       document.getElementById("authModal").style.display = "flex";
       return;
     }
     startGame();
-  });
+  }
+  startBtn.addEventListener("pointerdown", handleStart);
+  startBtn.addEventListener("click", handleStart);
+
   pauseBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); togglePause(); });
 
   function startGame(){
     state.blocks.length=0; state.bullets.length=0; state.powerups.length=0; state.coins.length=0;
-    state.score=0; state.time=0; state.blockTimer=0; state.powTimer=2.5;
+    state.score=0; state.time=0; state.blockTimer=0; state.powTimer=2.5; state.coinTimer =2.5;
     state.difficulty=1; state.over=false; state.paused=false;
     state.effects = { shrinkUntil:0, shieldUntil:0, slowUntil:0, magnetUntil:0 };
     state.player.invUntil = 0;
-    state.ammo=0; state.shrinkCharges=0; state.lives=0;
-    ammoEl.textContent="0"; livesEl.textContent="0"; shrinkCountEl.textContent="0";
+    state.ammo = 0;
+state.shrinkCharges = 0;
+state.lives = 0;
+ammoEl.textContent = "0";
+shrinkCountEl.textContent = "0";
+renderHearts();
     resetPlayer();
-    overlay.style.display="none"; state.running=true; state.last=performance.now();
+    overlay.style.display="none";
+    document.body.classList.remove('overlay-ui','paused-ui');
+    state.running=true; state.last=performance.now();
+    
     requestAnimationFrame(loop);
   }
 
-  async function gameOver(){
-    state.over=true; state.running=false; overlay.style.display="flex";
-    overlay.querySelector(".title").textContent = "Game Over";
-    const old = overlay.querySelector(".subtitle"); if (old) old.remove();
-    const p = document.createElement("div"); p.className="subtitle";
-    p.innerHTML = `You scored <strong>${Math.floor(state.score)}</strong>. ${(state.score>state.best)?`<span style="color:var(--danger)">New high score!</span>`:`Try again!`}`;
-    overlay.querySelector(".card").insertBefore(p, overlay.querySelector(".go"));
-    state.best=Math.max(state.best, Math.floor(state.score)); localStorage.setItem("dodger_best", String(state.best)); bestEl.textContent=state.best; startBtn.textContent="Play Again";
-    if (window.firebase?.saveScore) { try { await window.firebase.saveScore(state.score); } catch(_){} }
-  }
+async function gameOver(){
+    state.over = true;
+    state.running = false;
 
-  function togglePause(){
-    if(!state.running || state.over) return;
-    state.paused=!state.paused; pauseBtn.textContent = state.paused ? "Resume" : "Pause";
-    if(!state.paused){ state.last=performance.now(); requestAnimationFrame(loop); }
-    else { ctx.save(); ctx.fillStyle="rgba(0,0,0,0.25)"; ctx.fillRect(0,0,width,height); ctx.fillStyle="rgba(255,255,255,0.85)";
-      ctx.font="700 20px system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif"; ctx.textAlign="center"; ctx.fillText("Paused", width/2, height*0.45); ctx.restore(); }
+    overlay.style.display = "flex";
+    document.body.classList.add('overlay-ui');
+document.body.classList.remove('paused-ui');   // ensure we’re not in paused mode
+    overlayTitle.textContent = "Game Over";
+    const sub = ensureSubtitle();
+    sub.innerHTML = `You scored <strong>${Math.floor(state.score)}</strong>. Tap to start.<br><small>Two finger tap to pause</small>`;
+
+    state.best = Math.max(state.best, Math.floor(state.score));
+    localStorage.setItem("dodger_best", String(state.best));
+    bestEl.textContent = state.best;
+
+    try { 
+        await window.firebase.saveScore(state.score); 
+    } catch(_){}
+}
+
+function togglePause(){
+  if(!state.running || state.over) return;
+  state.paused = !state.paused;
+  pauseBtn.textContent = state.paused ? "Resume" : "Pause";
+
+  if (state.paused){
+    document.body.classList.add('paused-ui');   // << float HUD above overlay
+    showPausedOverlay();                         // "Paused — Tap to resume"
+  } else {
+    document.body.classList.remove('paused-ui'); // << restore normal stacking
+    overlay.style.display = "none";
+    document.body.classList.remove('overlay-ui');  // overlay no longer visible
+    showingPaused = false;
+    state.last = performance.now();
+    requestAnimationFrame(loop);
   }
+}
 
   function rand(min,max){ return Math.random()*(max-min)+min; }
   function roundRect(ctx,x,y,w,h,r,fill){ ctx.beginPath(); const rr=Math.min(r,w/2,h/2);
@@ -670,20 +1448,64 @@
     targetVX += state.input.swipeVX;
     p.vx += (targetVX - p.vx) * Math.min(1, dt*10);
     p.x += p.vx * dt;
-
-    // clamp horizontal & keep player on the "floor" above UI
     const pw = p.w * p.scale, ph = p.h * p.scale;
     if (p.x < 0) { p.x = 0; p.vx = Math.max(0, p.vx); }
     if (p.x + pw > width) { p.x = width - pw; p.vx = Math.min(0, p.vx); }
+    // keep player perched above bottom UI (accounts for shrink scaling)
     const floorY = height - uiBottom - ph - 10;
-    p.y = floorY;
+    p.y = Math.max(0, floorY);
 
     state.blockTimer -= worldDT;
-    const interval = Math.max(0.22, 0.9 - state.time*0.03);
-    if (state.blockTimer <= 0) { spawnBlock(); if (state.time > 12 && Math.random() < 0.35) spawnBlock(); state.blockTimer = interval; }
+    
+    // ── Two-finger tap to pause ──────────────────────────────────────────────
+const activeTouches = new Set();
 
-    state.powTimer -= worldDT;
-    if (state.powTimer <= 0) { if (Math.random() < 0.35) spawnCoin(); else spawnPowerup(); state.powTimer = rand(8, 13); }
+canvas.addEventListener("pointerdown", (e)=>{
+  if (e.pointerType === "touch") {
+    activeTouches.add(e.pointerId);
+    // if second finger lands during gameplay -> pause
+    if (activeTouches.size >= 2 && state.running && !state.paused && !state.over) {
+      togglePause();
+    }
+  }
+});
+
+["pointerup","pointercancel","pointerleave","pointerout"].forEach(ev=>{
+  window.addEventListener(ev, (e)=>{
+    if (e.pointerType === "touch") activeTouches.delete(e.pointerId);
+  }, { passive:true });
+});
+
+// Keep your swipe handler, but only start swipe for single-finger drags
+let swipeActive=false, swipeStartX=0;
+canvas.addEventListener("pointerdown", e=>{
+  if (e.pointerType === "touch" && activeTouches.size > 1) return; // ignore multi-touch
+  swipeActive=true; swipeStartX=e.clientX;
+});
+// base interval grows ~8–10% to reduce spawn frequency slightly
+const baseInterval = Math.max(0.24, 0.9 - state.time * 0.03);
+const interval = baseInterval * 1.08; // bump to 1.10 for ~10% fewer spawns
+
+if (state.blockTimer <= 0) {
+  spawnBlock();
+  // Step 2 (below) also reduces the “double-spawn” chance
+  if (state.time > 12 && Math.random() < 0.25) spawnBlock();
+  state.blockTimer = interval;
+}
+
+    // Power-ups (own cadence)
+state.powTimer -= worldDT;
+if (state.powTimer <= 0) {
+  spawnPowerup();
+  state.powTimer = rand(POWERUP_INTERVAL_MIN, POWERUP_INTERVAL_MAX);
+}
+
+// Coins (own cadence + chance)
+state.coinTimer -= worldDT;
+if (state.coinTimer <= 0) {
+  if (Math.random() < COIN_CHANCE) spawnCoin();
+  state.coinTimer = rand(COIN_INTERVAL_MIN, COIN_INTERVAL_MAX);
+}
 
     for (let i=state.blocks.length-1; i>=0; i--) {
       const b = state.blocks[i]; b.y += b.vy * worldDT; if (b.y - b.h > height + 8) { state.blocks.splice(i,1); }
@@ -705,12 +1527,12 @@
         else if (u.type === "shield") { state.effects.shieldUntil = Math.max(state.effects.shieldUntil, state.time) + 6; }
         else if (u.type === "slow")   { state.effects.slowUntil   = Math.max(state.effects.slowUntil,   state.time) + 6; }
         else if (u.type === "magnet") { state.effects.magnetUntil = Math.max(state.effects.magnetUntil, state.time) + 8; }
-        else if (u.type === "life")   { state.lives += 1; livesEl.textContent = state.lives; }
+        else if (u.type === "life")   { state.lives = Math.min(5, state.lives + 1); renderHearts(); }
         state.powerups.splice(i,1);
       }
     }
 
-    // coins (pickup) — Firestore snapshot updates the chip
+    // coins (pickup) — no manual UI bump; Firestore snapshot updates the chip
     for (let i=state.coins.length-1; i>=0; i--) {
       const c = state.coins[i]; c.y += c.vy * worldDT;
       if (c.y - c.h > height + 8) { state.coins.splice(i,1); continue; }
@@ -740,7 +1562,13 @@
         if (state.player.invUntil > state.time) { state.blocks.splice(i,1); continue; }
         const shieldActive = state.effects.shieldUntil > state.time;
         if (shieldActive) { state.effects.shieldUntil = Math.max(state.time, state.effects.shieldUntil - 0.5); state.player.invUntil = state.time + 0.5; state.blocks.splice(i,1); continue; }
-        if (state.lives > 0) { state.lives--; livesEl.textContent = state.lives; state.player.invUntil = state.time + 1.2; state.blocks.splice(i,1); continue; }
+        if (state.lives > 0) {
+  state.lives--;
+  renderHearts();
+  state.player.invUntil = state.time + 1.2;
+  state.blocks.splice(i,1);
+  continue;
+}
         gameOver(); return;
       }
     }
@@ -766,6 +1594,24 @@
     for (const b of state.blocks) {
       ctx.fillStyle = "#ff6b6b"; roundRect(ctx, b.x, b.y, b.w, b.h, Math.min(10, b.w*0.25), true);
       ctx.globalAlpha = 0.15; ctx.fillStyle = "#ffffff"; roundRect(ctx, b.x+b.w*0.1, b.y+b.h*0.08, b.w*0.8, b.h*0.18, 8, true); ctx.globalAlpha = 1;
+    }
+
+    // power-ups
+    for (const u of state.powerups) {
+      const r = Math.min(u.w, u.h);
+      let bg = "#ffd166", glyph = "🔫";
+      if (u.type === "shrink") { bg = "#60a5fa"; glyph = "✂"; }
+      else if (u.type === "shield") { bg = "#4ade80"; glyph = "🛡"; }
+      else if (u.type === "slow")   { bg = "#a78bfa"; glyph = "🐌"; }
+      else if (u.type === "magnet") { bg = "#f472b6"; glyph = "🧲"; }
+      else if (u.type === "life")   { bg = "#ef4444"; glyph = "❤️"; }
+      ctx.fillStyle = bg;
+      roundRect(ctx, u.x, u.y, u.w, u.h, Math.min(10, r * 0.25), true);
+      ctx.font = `${Math.floor(r * 0.7)}px system-ui, apple color emoji, Segoe UI Emoji, Emoji`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "rgba(0,0,0,.85)";
+      ctx.fillText(glyph, u.x + u.w / 2, u.y + u.h / 2 + 1);
     }
 
     // coins

@@ -1158,15 +1158,17 @@ function renderHearts(){
   lifeBar.innerHTML = out.join("");
 }
   
-  const prevent = (e) => { 
+// Allow touches on overlay, modals, menu popup, and the HUD/header (toolbar)
+const prevent = (e) => {
   if (
     e.target.closest(".overlay") ||
     e.target.closest(".modal")   ||
-    e.target.closest("#menuPopup") // ✅ allow touches inside menu popup
+    e.target.closest("#menuPopup") ||
+    e.target.closest("header")      // <-- allow Store/toolbar taps
   ) return;
   e.preventDefault();
 };
-["touchstart","touchmove","touchend","gesturestart"].forEach(ev => 
+["touchstart","touchmove","touchend","gesturestart"].forEach(ev =>
   document.addEventListener(ev, prevent, { passive:false })
 );
 

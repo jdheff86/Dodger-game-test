@@ -1060,14 +1060,25 @@ howtoClose.addEventListener("pointerdown", e => {
 // Open the store (require sign-in)
 storeBtn.addEventListener("pointerdown", (e)=>{
   e.preventDefault();
+
   if (!window.firebase.auth.currentUser){
-    // Force sign-in first
-    document.getElementById("authModal").style.display = "flex";
+    openModal(document.getElementById("authModal"));   // use your modal helper
     return;
   }
-  storeMsg.textContent = ""; // clear old message
+
+  // Pause the game if a run is active (purchases apply to the current run)
+  if (state.running && !state.paused && !state.over) togglePause();
+
+  // Enable/disable buy buttons depending on run state
+  const canBuy = state.running && !state.over; // paused counts as "in run"
+  [buyAmmo, buyShrink, buyLife].forEach(btn => btn.disabled = !canBuy);
+
   storeMsg.style.color = "var(--muted)";
-  storeModal.style.display = "flex";
+  storeMsg.textContent = canBuy
+    ? ""
+    : "Start a run to buy items. Purchases apply to the current run.";
+
+  openModal(storeModal);  // opens + sets body ui-lock
 });
 
 // Close the store
@@ -1083,8 +1094,15 @@ function getCoins(){
 
 async function spendCoins(cost){
   if (!window.firebase.auth.currentUser) throw new Error("Sign in to buy.");
+
+  // Purchases are per-run: only allow while a run is active
+  if (!state.running || state.over) {
+    throw new Error("Start a run first. Purchases apply only to the current run.");
+  }
+
   const have = getCoins();
   if (have < cost) throw new Error(`You need ${cost} coins (you have ${have}).`);
+
   // Deduct via Firestore (server-side authoritative)
   await window.firebase.addCoins(-cost);
 }

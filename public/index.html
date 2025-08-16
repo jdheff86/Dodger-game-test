@@ -845,6 +845,9 @@ function closeModal(m){
   document.body.classList.remove("ui-lock");
   window.blockResume?.();              // brief shield so the close tap can't resume
 }
+// Make these available to the non-module game script:
+window.openModal  = openModal;
+window.closeModal = closeModal;
 
   document.querySelectorAll(".modal").forEach(m=>{
     m.addEventListener("pointerdown", (e)=>{ if(e.target === m) closeModal(m); }, {passive:true});
@@ -1085,20 +1088,7 @@ storeBtn.addEventListener("click", (e)=>{
   openModal(storeModal);  // opens + sets body ui-lock
 });
 
-  // Pause the game if a run is active (purchases apply to the current run)
-  if (state.running && !state.paused && !state.over) togglePause();
 
-  // Enable/disable buy buttons depending on run state
-  const canBuy = state.running && !state.over; // paused counts as "in run"
-  [buyAmmo, buyShrink, buyLife].forEach(btn => btn.disabled = !canBuy);
-
-  storeMsg.style.color = "var(--muted)";
-  storeMsg.textContent = canBuy
-    ? ""
-    : "Start a run to buy items. Purchases apply to the current run.";
-
-  openModal(storeModal);  // opens + sets body ui-lock
-});
 
 // Close the store
 
@@ -1505,18 +1495,7 @@ function togglePause(){
 
     state.blockTimer -= worldDT;
     
-    // ── Two-finger tap to pause ──────────────────────────────────────────────
-const activeTouches = new Set();
-
-canvas.addEventListener("pointerdown", (e)=>{
-  if (e.pointerType === "touch") {
-    activeTouches.add(e.pointerId);
-    // if second finger lands during gameplay -> pause
-    if (activeTouches.size >= 2 && state.running && !state.paused && !state.over) {
-      togglePause();
-    }
-  }
-});
+  
 
 ["pointerup","pointercancel","pointerleave","pointerout"].forEach(ev=>{
   window.addEventListener(ev, (e)=>{

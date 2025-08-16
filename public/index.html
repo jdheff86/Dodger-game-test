@@ -457,7 +457,6 @@ header .toolbar .right::-webkit-scrollbar{ display:none; }
   <div class="card">
     <div class="title">DODGER</div>
     <div class="subtitle" id="startSub">Avoid blocks. Power-ups: 🔫 Blaster, ✂ Shrink, 🛡 Shield, 🐌 Slow, 🧲 Magnet, ❤️ Life.</div>
-    <button class="go" id="startBtn">Start</button>
     <div class="muted">Tip: Add to Home Screen on iPhone for full-screen play.</div>
   </div>
 </div>
@@ -810,7 +809,6 @@ header .toolbar .right::-webkit-scrollbar{ display:none; }
   const btnUp    = document.getElementById("authSignup");
   const btnOut   = document.getElementById("authSignout");
   const btnForgot= document.getElementById("authForgot");
-  const startBtn = document.getElementById("startBtn");
   const startSub = document.getElementById("startSub");
 
   onAuthStateChanged(auth, async (u)=>{
@@ -820,7 +818,7 @@ header .toolbar .right::-webkit-scrollbar{ display:none; }
     await window.firebase.watchWallet(null, null);
     // Keep the simple, non-emoji message
     startSub.textContent = "Two-finger tap to pause. Tap to start.";
-    startBtn.textContent = "Sign in";
+  
     return;
   }
 
@@ -830,7 +828,6 @@ header .toolbar .right::-webkit-scrollbar{ display:none; }
 
   // Keep the same non-emoji message even when signed in
   startSub.textContent = "Two-finger tap to pause. Tap to start.";
-  startBtn.textContent = "Start";
 });
 
   function openModal(m){
@@ -941,7 +938,7 @@ let POWERUP_INTERVAL_MIN = 8, POWERUP_INTERVAL_MAX = 13; // seconds
   const ammoEl  = document.getElementById("ammo");
   const livesEl = document.getElementById("lives");
   const coinCountEl = document.getElementById("coinCount");
-  const startBtn= document.getElementById("startBtn");
+  
   const pauseBtn= document.getElementById("pauseBtn");
   const overlay = document.getElementById("overlay");
   const leftPad = document.getElementById("leftPad");
@@ -1018,9 +1015,6 @@ showWaitingOverlay();
 function tryStartOrResume(e){
   e.preventDefault();
 
-  // If the tap/click started on the Start button, let ONLY the button handler run.
-  if (e.target.closest("#startBtn")) return;
-
   // Don’t resume if any UI is open or the tap was inside HUD/menu
   if (document.body.classList.contains("ui-lock")) return;
   if (e.target.closest("header, #menuPopup")) return;
@@ -1035,6 +1029,14 @@ function tryStartOrResume(e){
     if (state.paused) togglePause();  // unpause + restart loop
     return;
   }
+
+  // Otherwise, start a fresh run (auth-gated)
+  if (!window.firebase.auth.currentUser){
+    openModal(document.getElementById("authModal"));
+    return;
+  }
+  startGame();
+}
 
   // Otherwise, start a fresh run (auth-gated)
   if (!window.firebase.auth.currentUser){
@@ -1375,15 +1377,7 @@ window.addEventListener("pointerup", ()=>{
   });
 
   // Start button — support both click and pointerdown, and force sign-in when needed
-  function handleStart(e){
-    e.preventDefault();
-    if (!window.firebase.auth.currentUser){
-      document.getElementById("authModal").style.display = "flex";
-      return;
-    }
-    startGame();
-  }
-  startBtn.addEventListener("pointerdown", handleStart);
+  
   
 
   pauseBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); togglePause(); });

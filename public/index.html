@@ -18,7 +18,7 @@
   .safe { padding-top: env(safe-area-inset-top); }
 
   /* HUD -*/
-  header { position:absolute; top:0; left:0; right:0; z-index:8; display:flex; flex-direction:column; padding:8px 10px; gap:6px; pointer-events:auto; }
+  header { position:absolute; top:0; left:0; right:0; z-index:8; display:flex; flex-direction:column; padding:8px 10px; gap:6px; pointer-events:none; }
   /* allow clicking inside the menu popup */
 #menuPopup,
 #menuPopup .menuItem {
@@ -404,9 +404,6 @@ header .toolbar .right::-webkit-scrollbar{ display:none; }
   font-size:15px;
   margin:0;
 }
-/* Let header/UI behave like normal taps (don’t suppress pointer events) */
-header, header * { touch-action: manipulation; }
-#menuPopup, .modal, .controls .pad, #abilities, .btn { touch-action: manipulation; }
 </style>
 </head>
 <body class="safe">
@@ -845,9 +842,6 @@ function closeModal(m){
   document.body.classList.remove("ui-lock");
   window.blockResume?.();              // brief shield so the close tap can't resume
 }
-// Make these available to the non-module game script:
-window.openModal  = openModal;
-window.closeModal = closeModal;
 
   document.querySelectorAll(".modal").forEach(m=>{
     m.addEventListener("pointerdown", (e)=>{ if(e.target === m) closeModal(m); }, {passive:true});
@@ -975,6 +969,8 @@ const storeBtn   = document.getElementById("storeBtn");
 const storeModal = document.getElementById("storeModal");
 const storeClose = document.getElementById("storeClose");
 const storeMsg   = document.getElementById("storeMsg");
+// Items purchased outside a run that should apply to the next run.
+const loadout = { ammo: 0, shrink: 0, lives: 0 };
 // ── Start/Pause overlay helpers ──────────────────────────────────────────
 const overlayCard  = document.querySelector("#overlay .card");
 const overlayTitle = document.querySelector("#overlay .title");
@@ -1001,8 +997,6 @@ function showWaitingOverlay(){
   overlayTitle.textContent = "DODGER";
   ensureSubtitle().textContent = "Two-finger tap to pause. Tap to start.";
   document.body.classList.add ('overlay-ui');
-  startBtn.textContent = "Start";
-
 }
 
 function showPausedOverlay(){
@@ -1010,7 +1004,6 @@ function showPausedOverlay(){
   overlay.style.display = "flex";
   overlayTitle.textContent = "Paused";
   ensureSubtitle().textContent = "Tap to resume";
-  startBtn.textContent = "Resume" ;
   document.body.classList.add ('overlay-ui');
 }
 
@@ -1025,7 +1018,6 @@ function tryStartOrResume(e){
   // 1) Don’t resume if any UI is open or we’re inside the HUD/menu
   if (document.body.classList.contains("ui-lock")) return;
   if (e.target.closest("header, #menuPopup")) return;
-  if (e.target.closest('#startBtn')) return;
 
   // 2) Don’t resume immediately after a UI closes (shield)
   if (performance.now() < _resumeBlockUntil) return;
@@ -1064,31 +1056,17 @@ howtoClose.addEventListener("pointerdown", e => {
 });
 
 // Open the store (require sign-in)
-// Open the store (require sign-in)
-storeBtn.addEventListener("click", (e)=>{
+storeBtn.addEventListener("pointerdown", (e)=>{
   e.preventDefault();
-
   if (!window.firebase.auth.currentUser){
-    window.openModal(document.getElementById("authModal"));   // use your modal helper
+    // Force sign-in first
+    document.getElementById("authModal").style.display = "flex";
     return;
   }
-
-  // Pause the game if a run is active (purchases apply to the current run)
-  if (state.running && !state.paused && !state.over) togglePause();
-
-  // Enable/disable buy buttons depending on run state
-  const canBuy = state.running && !state.over; // paused counts as "in run"
-  [buyAmmo, buyShrink, buyLife].forEach(btn => btn.disabled = !canBuy);
-
+  storeMsg.textContent = ""; // clear old message
   storeMsg.style.color = "var(--muted)";
-  storeMsg.textContent = canBuy
-    ? ""
-    : "Start a run to buy items. Purchases apply to the current run.";
-
-  openModal(storeModal);  // opens + sets body ui-lock
+  storeModal.style.display = "flex";
 });
-
-
 
 // Close the store
 
@@ -1103,15 +1081,8 @@ function getCoins(){
 
 async function spendCoins(cost){
   if (!window.firebase.auth.currentUser) throw new Error("Sign in to buy.");
-
-  // Purchases are per-run: only allow while a run is active
-  if (!state.running || state.over) {
-    throw new Error("Start a run first. Purchases apply only to the current run.");
-  }
-
   const have = getCoins();
   if (have < cost) throw new Error(`You need ${cost} coins (you have ${have}).`);
-
   // Deduct via Firestore (server-side authoritative)
   await window.firebase.addCoins(-cost);
 }
@@ -1124,9 +1095,15 @@ buyAmmo.addEventListener("pointerdown", async (e)=>{
   e.preventDefault();
   try{
     await spendCoins(5);
-    state.ammo += 6;
-    ammoEl.textContent = state.ammo;
-    flashStoreMsg("Purchased +6 ammo.");
+    const applyNow = state.running && !state.over;
+    if (applyNow){
+      state.ammo += 6;
+      ammoEl.textContent = state.ammo;
+      flashStoreMsg("Purchased +6 ammo (applied).");
+    } else {
+      loadout.ammo += 6;
+      flashStoreMsg("Purchased +6 ammo (will apply to next run).");
+    }
   }catch(err){
     flashStoreMsg(err.message || String(err), false);
   }
@@ -1136,9 +1113,15 @@ buyShrink.addEventListener("pointerdown", async (e)=>{
   e.preventDefault();
   try{
     await spendCoins(8);
-    state.shrinkCharges += 1;
-    shrinkCountEl.textContent = state.shrinkCharges;
-    flashStoreMsg("Purchased +1 shrink charge.");
+    const applyNow = state.running && !state.over;
+    if (applyNow){
+      state.shrinkCharges += 1;
+      shrinkCountEl.textContent = state.shrinkCharges;
+      flashStoreMsg("Purchased +1 shrink (applied).");
+    } else {
+      loadout.shrink += 1;
+      flashStoreMsg("Purchased +1 shrink (will apply to next run).");
+    }
   }catch(err){
     flashStoreMsg(err.message || String(err), false);
   }
@@ -1148,13 +1131,21 @@ buyLife.addEventListener("pointerdown", async (e)=>{
   e.preventDefault();
   try{
     await spendCoins(10);
-    state.lives = Math.min(5, state.lives + 1);
-    renderHearts();
-    flashStoreMsg("Purchased +1 life.");
+    const applyNow = state.running && !state.over;
+    if (applyNow){
+      state.lives = Math.min(5, (state.lives|0) + 1);
+      renderHearts();
+      flashStoreMsg("Purchased +1 life (applied).");
+    } else {
+      // Queue for next run; don’t exceed 5 at run start.
+      loadout.lives = Math.min(5, (loadout.lives|0) + 1);
+      flashStoreMsg(`Purchased +1 life (queued: ${loadout.lives})`);
+    }
   }catch(err){
     flashStoreMsg(err.message || String(err), false);
   }
 });
+
 const lifeBar = document.getElementById("lifeBar");
 function renderHearts(){
   if (!lifeBar) return;
@@ -1167,12 +1158,16 @@ function renderHearts(){
   lifeBar.innerHTML = out.join("");
 }
   
-// Allow touches on overlay, modals, menu popup, and the HUD/header (toolbar)
-// Only block touch gestures inside the game area (#stage), never on the HUD/header
-const stage = document.getElementById("stage");
-const blockTouch = (e) => { e.preventDefault(); };
-["touchstart","touchmove","touchend","gesturestart"].forEach(ev =>
-  stage.addEventListener(ev, blockTouch, { passive:false })
+  const prevent = (e) => { 
+  if (
+    e.target.closest(".overlay") ||
+    e.target.closest(".modal")   ||
+    e.target.closest("#menuPopup") // ✅ allow touches inside menu popup
+  ) return;
+  e.preventDefault();
+};
+["touchstart","touchmove","touchend","gesturestart"].forEach(ev => 
+  document.addEventListener(ev, prevent, { passive:false })
 );
 
   // Name modal
@@ -1248,10 +1243,10 @@ menuBtn.addEventListener("pointerdown", (e)=>{
 
 // click outside to close
 document.addEventListener("pointerdown", (e)=>{
-  if (!menuPopup.contains(e.target) && e.target !== menuBtn){
+  if (!menuPopup.contains(e.target) && !e.target.closest("#menuBtn")){
     closeMenu();
   }
-}, {passive:true});
+}, { passive:true });
 
 // Esc closes
 document.addEventListener("keydown", (e)=>{
@@ -1296,6 +1291,7 @@ menuPopup.addEventListener("pointerdown", (e)=>{
     coins:[]
     
   };
+  
   bestEl.textContent = state.best;
 ammoEl.textContent = state.ammo;
 shrinkCountEl.textContent = state.shrinkCharges;
@@ -1321,10 +1317,42 @@ renderHearts();
     el.addEventListener("pointerdown", down); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up); el.addEventListener("pointerleave", up); }
   bindPad(leftPad,-1); bindPad(rightPad,1);
 
-  let swipeActive=false, swipeStartX=0;
-  canvas.addEventListener("pointerdown", e=>{ swipeActive=true; swipeStartX=e.clientX; });
-  window.addEventListener("pointermove", e=>{ if(!swipeActive) return; const dx=e.clientX-swipeStartX; state.input.swipeVX=dx*3; });
-  window.addEventListener("pointerup", ()=>{ swipeActive=false; state.input.swipeVX=0; });
+  /* ===== Input: swipe + two-finger pause (global, run once) ===== */
+const activeTouches = new Set();
+let swipeActive = false, swipeStartX = 0;
+
+canvas.addEventListener("pointerdown", e=>{
+  // Track touches
+  if (e.pointerType === "touch") {
+    activeTouches.add(e.pointerId);
+    // 2nd finger during gameplay pauses
+    if (activeTouches.size >= 2 && state.running && !state.paused && !state.over) {
+      togglePause();
+      return; // don't start a swipe from the 2nd finger
+    }
+  }
+  // Start swipe for mouse/pen or single-touch
+  if (e.pointerType !== "touch" || activeTouches.size <= 1) {
+    swipeActive = true;
+    swipeStartX = e.clientX;
+  }
+});
+
+["pointerup","pointercancel","pointerleave","pointerout"].forEach(ev=>{
+  window.addEventListener(ev, e=>{
+    if (e.pointerType === "touch") activeTouches.delete(e.pointerId);
+  }, { passive:true });
+});
+
+window.addEventListener("pointermove", e=>{
+  if (!swipeActive) return;
+  const dx = e.clientX - swipeStartX;
+  state.input.swipeVX = dx * 3;
+});
+window.addEventListener("pointerup", ()=>{
+  swipeActive = false;
+  state.input.swipeVX = 0;
+});
 
   firePad.addEventListener("pointerdown", e=>{ e.preventDefault(); shoot(); });
   shrinkBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); useShrink(); });
@@ -1342,48 +1370,69 @@ renderHearts();
 
   // Start button — support both click and pointerdown, and force sign-in when needed
   function handleStart(e){
-  e.preventDefault();
-
-  // If we're on the pause overlay, make the button RESUME
-  if (showingPaused && state.paused && !state.over) {
-    overlay.style.display = "none";
-    showingPaused = false;
-    togglePause();                 // unpause + continue current run
-    return;
+    e.preventDefault();
+    if (!window.firebase.auth.currentUser){
+      document.getElementById("authModal").style.display = "flex";
+      return;
+    }
+    startGame();
   }
-
-  // Auth gate for brand-new starts
-  if (!window.firebase.auth.currentUser){
-    document.getElementById("authModal").style.display = "flex";
-    return;
-  }
-
-  // Fresh run only when NOT paused
-  startGame();
-}
   startBtn.addEventListener("pointerdown", handleStart);
+  startBtn.addEventListener("click", handleStart);
 
   pauseBtn.addEventListener("pointerdown", e=>{ e.preventDefault(); togglePause(); });
 
-  function startGame(){
-    state.blocks.length=0; state.bullets.length=0; state.powerups.length=0; state.coins.length=0;
-    state.score=0; state.time=0; state.blockTimer=0; state.powTimer=2.5; state.coinTimer =2.5;
-    state.difficulty=1; state.over=false; state.paused=false;
-    state.effects = { shrinkUntil:0, shieldUntil:0, slowUntil:0, magnetUntil:0 };
-    state.player.invUntil = 0;
-    state.ammo = 0;
-state.shrinkCharges = 0;
-state.lives = 0;
-ammoEl.textContent = "0";
-shrinkCountEl.textContent = "0";
-renderHearts();
-    resetPlayer();
-    overlay.style.display="none";
-    document.body.classList.remove('overlay-ui','paused-ui');
-    state.running=true; state.last=performance.now();
-    
-    requestAnimationFrame(loop);
-  }
+function startGame(){
+  // Clear world
+  state.blocks.length = 0;
+  state.bullets.length = 0;
+  state.powerups.length = 0;
+  state.coins.length = 0;
+
+  // Reset timers & flags
+  state.score = 0;
+  state.time = 0;
+  state.blockTimer = 0;
+  state.powTimer = 2.5;
+  state.coinTimer = 2.5;
+  state.difficulty = 1;
+  state.over = false;
+  state.paused = false;
+  state.effects = { shrinkUntil:0, shieldUntil:0, slowUntil:0, magnetUntil:0 };
+  state.player.invUntil = 0;
+
+  // Reset per-run values…
+  state.ammo = 0;
+  state.shrinkCharges = 0;
+  state.lives = 0;
+
+  // …then apply anything pre-bought while not in a run (one-time)
+  const nextAmmo   = (loadout.ammo   | 0);
+  const nextShrink = (loadout.shrink | 0);
+  const nextLives  = (loadout.lives  | 0);
+
+  state.ammo          = (state.ammo | 0) + nextAmmo;
+  state.shrinkCharges = (state.shrinkCharges | 0) + nextShrink;
+  state.lives         = Math.min(5, (state.lives | 0) + nextLives);
+
+  // Consume the stash so it doesn’t apply twice
+  loadout.ammo = 0;
+  loadout.shrink = 0;
+  loadout.lives = 0;
+
+  // Sync UI
+  ammoEl.textContent = String(state.ammo);
+  shrinkCountEl.textContent = String(state.shrinkCharges);
+  renderHearts();
+
+  // Kick off run
+  resetPlayer();
+  overlay.style.display = "none";
+  document.body.classList.remove('overlay-ui','paused-ui');
+  state.running = true;
+  state.last = performance.now();
+  requestAnimationFrame(loop);
+}
 
 async function gameOver(){
     state.over = true;
@@ -1420,7 +1469,6 @@ function togglePause(){
     showingPaused = false;
     state.last = performance.now();
     requestAnimationFrame(loop);
-    startBtn.textContent = "Resume";
   }
 }
 
@@ -1495,20 +1543,7 @@ function togglePause(){
 
     state.blockTimer -= worldDT;
     
-  
 
-["pointerup","pointercancel","pointerleave","pointerout"].forEach(ev=>{
-  window.addEventListener(ev, (e)=>{
-    if (e.pointerType === "touch") activeTouches.delete(e.pointerId);
-  }, { passive:true });
-});
-
-// Keep your swipe handler, but only start swipe for single-finger drags
-let swipeActive=false, swipeStartX=0;
-canvas.addEventListener("pointerdown", e=>{
-  if (e.pointerType === "touch" && activeTouches.size > 1) return; // ignore multi-touch
-  swipeActive=true; swipeStartX=e.clientX;
-});
 // base interval grows ~8–10% to reduce spawn frequency slightly
 const baseInterval = Math.max(0.24, 0.9 - state.time * 0.03);
 const interval = baseInterval * 1.08; // bump to 1.10 for ~10% fewer spawns

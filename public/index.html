@@ -1066,7 +1066,7 @@ storeBtn.addEventListener("click", (e)=>{
   e.preventDefault();
 
   if (!window.firebase.auth.currentUser){
-    openModal(document.getElementById("authModal"));   // use your modal helper
+    window.openModal(document.getElementById("authModal"));   // use your modal helper
     return;
   }
 

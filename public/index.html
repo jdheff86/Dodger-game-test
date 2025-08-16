@@ -404,6 +404,9 @@ header .toolbar .right::-webkit-scrollbar{ display:none; }
   font-size:15px;
   margin:0;
 }
+/* Let header/UI behave like normal taps (don’t suppress pointer events) */
+header, header * { touch-action: manipulation; }
+#menuPopup, .modal, .controls .pad, #abilities, .btn { touch-action: manipulation; }
 </style>
 </head>
 <body class="safe">
@@ -1159,17 +1162,11 @@ function renderHearts(){
 }
   
 // Allow touches on overlay, modals, menu popup, and the HUD/header (toolbar)
-const prevent = (e) => {
-  if (
-    e.target.closest(".overlay") ||
-    e.target.closest(".modal")   ||
-    e.target.closest("#menuPopup") ||
-    e.target.closest("header")      // <-- allow Store/toolbar taps
-  ) return;
-  e.preventDefault();
-};
+// Only block touch gestures inside the game area (#stage), never on the HUD/header
+const stage = document.getElementById("stage");
+const blockTouch = (e) => { e.preventDefault(); };
 ["touchstart","touchmove","touchend","gesturestart"].forEach(ev =>
-  document.addEventListener(ev, prevent, { passive:false })
+  stage.addEventListener(ev, blockTouch, { passive:false })
 );
 
   // Name modal

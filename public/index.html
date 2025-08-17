@@ -1012,6 +1012,7 @@ showWaitingOverlay();
 // Tap anywhere on the overlay: start or resume
 // Tap anywhere on the overlay: start or resume
 // REPLACE your existing tryStartOrResume with this:
+// Tap anywhere on the overlay: start or resume
 function tryStartOrResume(e){
   e.preventDefault();
 
@@ -1035,15 +1036,7 @@ function tryStartOrResume(e){
     openModal(document.getElementById("authModal"));
     return;
   }
-  startGame();
-}
-
-  // Otherwise, start a fresh run (auth-gated)
-  if (!window.firebase.auth.currentUser){
-    openModal(document.getElementById("authModal"));
-    return;
-  }
-  startGame();
+  startGame(); // <- single, unified start
 }
 overlay.addEventListener("pointerdown", tryStartOrResume);
 const buyAmmo    = document.getElementById("buyAmmo");
